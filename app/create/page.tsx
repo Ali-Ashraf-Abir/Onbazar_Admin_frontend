@@ -7,8 +7,15 @@ const API = process.env.NEXT_PUBLIC_API_URL as string;
 
 const PRESET_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "Free Size"];
 
-
+/* ── types ── */
 type ImageEntry = { file: File; url: string };
+
+interface Category {
+  _id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+}
 
 export default function CreateProductPage() {
   const [name, setName] = useState("");
@@ -22,7 +29,11 @@ export default function CreateProductPage() {
   const sizeDropRef = useRef<HTMLDivElement>(null);
   const sizeTriggerRef = useRef<HTMLButtonElement>(null);
 
-  // Store {file, url} together so order stays in sync and URLs can be revoked
+  // Category
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+
   const [images, setImages] = useState<ImageEntry[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -33,7 +44,23 @@ export default function CreateProductPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastCreated, setLastCreated] = useState<{ id: string; name: string; price: number; image: string } | null>(null);
 
-  // Revoke object URLs on unmount and whenever images change
+  /* ── fetch active categories on mount ── */
+  useEffect(() => {
+    async function load() {
+      setCategoriesLoading(true);
+      try {
+        const res = await fetch(`${API}/categories`); // active only
+        const json = await res.json();
+        if (res.ok) setCategories(json.data as Category[]);
+      } catch {
+        // silently fail — user will see empty dropdown
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+    load();
+  }, []);
+
   useEffect(() => {
     return () => { images.forEach((img) => URL.revokeObjectURL(img.url)); };
   }, [images]);
@@ -47,7 +74,9 @@ export default function CreateProductPage() {
   }, [sizes, useCustomSizeChart]);
 
   useEffect(() => {
-    function h(e: MouseEvent) { if (sizeDropRef.current && !sizeDropRef.current.contains(e.target as Node)) setSizeDropOpen(false); }
+    function h(e: MouseEvent) {
+      if (sizeDropRef.current && !sizeDropRef.current.contains(e.target as Node)) setSizeDropOpen(false);
+    }
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -79,19 +108,11 @@ export default function CreateProductPage() {
   }
 
   function removeImage(i: number) {
-    setImages((prev) => {
-      URL.revokeObjectURL(prev[i].url);
-      return prev.filter((_, j) => j !== i);
-    });
+    setImages((prev) => { URL.revokeObjectURL(prev[i].url); return prev.filter((_, j) => j !== i); });
   }
 
-  // Reorders in state — index 0 = cover. No API call needed (product not created yet).
   function setAsCover(i: number) {
-    setImages((prev) => {
-      const next = [...prev];
-      const [entry] = next.splice(i, 1);
-      return [entry, ...next];
-    });
+    setImages((prev) => { const next = [...prev]; const [entry] = next.splice(i, 1); return [entry, ...next]; });
   }
 
   function clearAll() {
@@ -105,6 +126,7 @@ export default function CreateProductPage() {
     setDescription("");
     setBullets(["320 GSM", "Box Fit", "100% Cotton"]);
     setSizes(["M", "L", "XL", "2XL"]);
+    setCategoryId("");
     setImages((prev) => { prev.forEach((img) => URL.revokeObjectURL(img.url)); return []; });
     setUseCustomSizeChart(false);
     setSizeChart({ unit: "inches", columns: [], rows: [] });
@@ -115,13 +137,16 @@ export default function CreateProductPage() {
   async function handleCreate() {
     if (!name.trim()) return alert("Name is required");
     if (!description.trim()) return alert("Description is required");
+    if (!categoryId) return alert("Please select a category");
     const pricePaisa = Math.round(Number(price) * 100);
     if (!Number.isFinite(pricePaisa) || pricePaisa < 0) return alert("Price must be a valid number");
     if (images.length < 1) return alert("Please select at least 1 image");
+
     setLoading(true);
     try {
       const fd = new FormData();
       fd.append("name", name.trim());
+      fd.append("category", categoryId);
       fd.append("price", String(pricePaisa));
       fd.append("isActive", String(isActive));
       fd.append("details", JSON.stringify({ description: description.trim(), bullets: bullets.map((b) => b.trim()).filter(Boolean) }));
@@ -132,17 +157,24 @@ export default function CreateProductPage() {
         catch { alert("Invalid allowedAddons JSON"); setLoading(false); return; }
       }
       images.forEach((img) => fd.append("images", img.file));
+
       const res = await fetch(`${API}/products`, { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) { alert(data.message || "Failed to create product"); return; }
+
       const p = data.data;
       setLastCreated({ id: p._id, name: p.name, price: p.price, image: p.images?.[0] || "" });
       resetForm();
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3500);
-    } catch { alert("Error creating product"); }
-    finally { setLoading(false); }
+    } catch {
+      alert("Error creating product");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  const selectedCategory = categories.find((c) => c._id === categoryId);
 
   return (
     <>
@@ -150,6 +182,53 @@ export default function CreateProductPage() {
         .cp-img-counter { display: flex; gap: 5px; margin-top: 12px; }
         .cp-img-pip { height: 3px; flex: 1; border-radius: 3px; background: var(--color-border); transition: background 0.3s; }
         .cp-img-pip--filled { background: var(--color-ink); }
+
+        /* Category select */
+        .as-cat-select {
+          width: 100%;
+          appearance: none;
+          -webkit-appearance: none;
+          background-color: var(--color-input-bg);
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C9589' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 14px center;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-md);
+          padding: 11px 38px 11px 14px;
+          font-family: var(--font-body);
+          font-size: 14px;
+          color: var(--color-ink);
+          cursor: pointer;
+          transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+          outline: none;
+        }
+        .as-cat-select:focus {
+          border-color: var(--color-accent);
+          background-color: var(--color-input-focus);
+          box-shadow: 0 0 0 3px rgba(200,169,126,0.18);
+        }
+        .as-cat-select--placeholder { color: var(--color-ghost); }
+        .as-cat-select-wrap { position: relative; }
+        .as-cat-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          margin-top: 8px;
+          padding: 3px 10px;
+          border-radius: var(--radius-pill);
+          font-size: 12px;
+          font-weight: 600;
+          font-family: var(--font-body);
+          background: rgba(200,169,126,0.12);
+          color: var(--color-accent-dark);
+          border: 1px solid rgba(200,169,126,0.3);
+        }
+        .as-cat-empty {
+          font-size: 12px;
+          color: var(--color-subtle);
+          margin-top: 8px;
+          font-style: italic;
+        }
       `}</style>
 
       <div style={{ fontFamily: "var(--font-body)", background: "var(--color-bg)", minHeight: "100vh", color: "var(--color-ink)" }}>
@@ -176,11 +255,15 @@ export default function CreateProductPage() {
                 </div>
                 <div className="as-card-body">
                   <div className="cp-img-counter">
-                    {[0,1,2,3].map((i) => <div key={i} className={`cp-img-pip ${i < images.length ? "cp-img-pip--filled" : ""}`} />)}
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className={`cp-img-pip ${i < images.length ? "cp-img-pip--filled" : ""}`} />
+                    ))}
                   </div>
 
                   {images.length < 4 && (
-                    <label className={`as-drop-zone ${dragOver ? "as-drop-zone--active" : ""}`} style={{ marginTop: 14 }}
+                    <label
+                      className={`as-drop-zone ${dragOver ? "as-drop-zone--active" : ""}`}
+                      style={{ marginTop: 14 }}
                       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                       onDragLeave={() => setDragOver(false)}
                       onDrop={(e) => { e.preventDefault(); setDragOver(false); addImages(e.dataTransfer.files); }}
@@ -311,6 +394,46 @@ export default function CreateProductPage() {
                     <label className="as-label">Product Name</label>
                     <input className="as-input" placeholder="e.g. Box Fit Heavyweight Tee" value={name} onChange={(e) => setName(e.target.value)} />
                   </div>
+
+                  {/* ── Category ── */}
+                  <div className="as-field">
+                    <label className="as-label">Category</label>
+                    <div className="as-cat-select-wrap">
+                      {categoriesLoading ? (
+                        <div className="as-cat-empty">Loading categories…</div>
+                      ) : categories.length === 0 ? (
+                        <div className="as-cat-empty">
+                          No categories found.{" "}
+                          <a href="/admin/categories" style={{ color: "var(--color-accent-dark)", textDecoration: "underline" }}>
+                            Create one first →
+                          </a>
+                        </div>
+                      ) : (
+                        <>
+                          <select
+                            className={`as-cat-select ${!categoryId ? "as-cat-select--placeholder" : ""}`}
+                            value={categoryId}
+                            onChange={(e) => setCategoryId(e.target.value)}
+                          >
+                            <option value="" disabled>Choose a category…</option>
+                            {categories.map((c) => (
+                              <option key={c._id} value={c._id}>{c.name}</option>
+                            ))}
+                          </select>
+                          {selectedCategory && (
+                            <div className="as-cat-badge">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <path d="M20 6 9 17l-5-5" />
+                              </svg>
+                              {selectedCategory.name}
+                              <span style={{ color: "var(--color-ghost)", fontWeight: 400 }}>· {selectedCategory.slug}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="as-field">
                     <label className="as-label">Price (BDT)</label>
                     <div className="as-price-wrap">
@@ -318,6 +441,7 @@ export default function CreateProductPage() {
                       <span className="as-price-badge">BDT</span>
                     </div>
                   </div>
+
                   <div className="as-field">
                     <label className="as-toggle-row">
                       <div className="as-toggle">
@@ -376,7 +500,10 @@ export default function CreateProductPage() {
                   <label className="as-label">Select sizes</label>
                   <div className="as-size-selector" ref={sizeDropRef}>
                     <button type="button" ref={sizeTriggerRef} className={`as-size-trigger ${sizeDropOpen ? "as-size-trigger--open" : ""}`} onClick={() => setSizeDropOpen((p) => !p)}>
-                      {sizes.length === 0 ? <span className="as-size-trigger-placeholder">Choose sizes…</span> : <div className="as-size-chips-trigger">{sizes.map((s) => <span key={s} className="as-size-chip">{s}</span>)}</div>}
+                      {sizes.length === 0
+                        ? <span className="as-size-trigger-placeholder">Choose sizes…</span>
+                        : <div className="as-size-chips-trigger">{sizes.map((s) => <span key={s} className="as-size-chip">{s}</span>)}</div>
+                      }
                       <span className={`as-size-chevron ${sizeDropOpen ? "as-size-chevron--open" : ""}`}>▼</span>
                     </button>
                     {sizeDropOpen && (
@@ -417,7 +544,9 @@ export default function CreateProductPage() {
               {/* Last Created Card */}
               {lastCreated && (
                 <a href={`/products/${lastCreated.id}`} style={{ textDecoration: "none" }}>
-                  <div className="as-card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", cursor: "pointer", border: "1.5px solid var(--color-accent)", transition: "box-shadow 0.15s" }}
+                  <div
+                    className="as-card"
+                    style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", cursor: "pointer", border: "1.5px solid var(--color-accent)", transition: "box-shadow 0.15s" }}
                     onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent)")}
                     onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
                   >
@@ -438,7 +567,7 @@ export default function CreateProductPage() {
         </div>
       </div>
 
-      {/* Success Toast — fully inline, no CSS classes */}
+      {/* Success Toast */}
       {showSuccess && (
         <div style={{
           position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)",

@@ -137,6 +137,7 @@ export default function Home() {
         <header className="as-header">
           <span className="as-header-brand">Admin Studio</span>
           <a href="/create" className="as-btn-accent">+ New Product</a>
+          <a href="/categories" className="as-btn-accent">+ New Category</a>
         </header>
 
         <div className="as-body as-body--wide">

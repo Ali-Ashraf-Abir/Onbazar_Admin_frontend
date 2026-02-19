@@ -8,6 +8,13 @@ const API = process.env.NEXT_PUBLIC_API_URL as string;
 
 const PRESET_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "Free Size"];
 
+/* ── types ── */
+interface Category {
+  _id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+}
 
 export default function ProductDetailsPage() {
   const params = useParams();
@@ -35,17 +42,45 @@ export default function ProductDetailsPage() {
   const [useCustomSizeChart, setUseCustomSizeChart] = useState(false);
   const [sizeChart, setSizeChart] = useState<SizeChart>({ unit: "inches", columns: [], rows: [] });
 
+  /* ── category ── */
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+
+  /* ── fetch categories once ── */
+  useEffect(() => {
+    async function loadCategories() {
+      setCategoriesLoading(true);
+      try {
+        const res = await fetch(`${API}/categories`);
+        const json = await res.json();
+        if (res.ok) setCategories(json.data as Category[]);
+      } catch {
+        // silently fail
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+    loadCategories();
+  }, []);
+
   async function load() {
     if (!id) return;
     const res = await fetch(`${API}/products/${id}`);
     const data = await res.json();
     if (!res.ok) { alert(data.message || "Failed to load product"); return; }
     const p = data.data;
-    setProduct(p); setName(p.name); setPrice(String(p.price / 100));
-    setDescription(p.details?.description || ""); setBullets(p.details?.bullets || []);
+    setProduct(p);
+    setName(p.name);
+    setPrice(String(p.price / 100));
+    setDescription(p.details?.description || "");
+    setBullets(p.details?.bullets || []);
     setSizes(p.sizes || []);
     setAllowedAddonsJson(p.allowedAddons ? JSON.stringify(p.allowedAddons, null, 2) : "");
     setIsActive(Boolean(p.isActive));
+    // category: populated object or raw id string
+    const cat = p.category;
+    setCategoryId(typeof cat === "object" && cat !== null ? cat._id : (cat ?? ""));
     if (p.sizeChart?.columns?.length > 0) { setUseCustomSizeChart(true); setSizeChart(p.sizeChart); }
     else { setUseCustomSizeChart(false); setSizeChart({ unit: "inches", columns: [], rows: [] }); }
   }
@@ -53,7 +88,9 @@ export default function ProductDetailsPage() {
   useEffect(() => { load(); }, [id]);
 
   useEffect(() => {
-    function h(e: MouseEvent) { if (sizeDropRef.current && !sizeDropRef.current.contains(e.target as Node)) setSizeDropOpen(false); }
+    function h(e: MouseEvent) {
+      if (sizeDropRef.current && !sizeDropRef.current.contains(e.target as Node)) setSizeDropOpen(false);
+    }
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -77,29 +114,42 @@ export default function ProductDetailsPage() {
   function updateChartCell(ri: number, ci: number, v: string) {
     setSizeChart((p) => ({ ...p, rows: p.rows.map((r, i) => i === ri ? { ...r, values: r.values.map((x, j) => j === ci ? v : x) } : r) }));
   }
-  function updateRowLabel(ri: number, v: string) { setSizeChart((p) => ({ ...p, rows: p.rows.map((r, i) => i === ri ? { ...r, label: v } : r) })); }
+  function updateRowLabel(ri: number, v: string) {
+    setSizeChart((p) => ({ ...p, rows: p.rows.map((r, i) => i === ri ? { ...r, label: v } : r) }));
+  }
   function addChartRow() { setSizeChart((p) => ({ ...p, rows: [...p.rows, { label: "New Measurement", values: p.columns.map(() => "") }] })); }
   function removeChartRow(i: number) { setSizeChart((p) => ({ ...p, rows: p.rows.filter((_, j) => j !== i) })); }
 
   async function handlePatch() {
+    if (!categoryId) return alert("Please select a category");
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append("name", name); fd.append("price", String(Math.round(Number(price) * 100)));
+      fd.append("name", name);
+      fd.append("category", categoryId);
+      fd.append("price", String(Math.round(Number(price) * 100)));
       fd.append("isActive", String(isActive));
       fd.append("details", JSON.stringify({ description, bullets: bullets.map((b) => b.trim()).filter(Boolean) }));
       fd.append("sizes", JSON.stringify(sizes));
       if (useCustomSizeChart && sizeChart.columns.length > 0) fd.append("sizeChart", chartToJson(sizeChart));
       else fd.append("sizeChart", JSON.stringify(null));
-      if (allowedAddonsJson.trim()) { try { fd.append("allowedAddons", JSON.stringify(JSON.parse(allowedAddonsJson))); } catch { alert("Invalid allowedAddons JSON"); setSaving(false); return; } }
-      else fd.append("allowedAddons", JSON.stringify(null));
+      if (allowedAddonsJson.trim()) {
+        try { fd.append("allowedAddons", JSON.stringify(JSON.parse(allowedAddonsJson))); }
+        catch { alert("Invalid allowedAddons JSON"); setSaving(false); return; }
+      } else {
+        fd.append("allowedAddons", JSON.stringify(null));
+      }
       fd.append("imageMode", imageMode);
       if (newFiles) { for (let i = 0; i < newFiles.length; i++) fd.append("images", newFiles[i]); }
       const res = await fetch(`${API}/products/${id}`, { method: "PATCH", body: fd });
       const data = await res.json();
       if (!res.ok) { alert(data.message || "Update failed"); return; }
-      setProduct(data.data); setNewFiles(null); alert("Saved!");
-    } finally { setSaving(false); }
+      setProduct(data.data);
+      setNewFiles(null);
+      alert("Saved!");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete() {
@@ -117,7 +167,6 @@ export default function ProductDetailsPage() {
     setProduct(data.data);
   }
 
-  // FIXED: Send reordered images as FormData so multer parses req.body correctly
   async function setCoverImage(url: string) {
     if (settingCover) return;
     const reordered = [url, ...product.images.filter((u: string) => u !== url)];
@@ -139,8 +188,12 @@ export default function ProductDetailsPage() {
     const res = await fetch(`${API}/products/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sizeChart: null }) });
     const data = await res.json();
     if (!res.ok) { alert(data.message || "Failed resetting sizeChart"); return; }
-    setProduct(data.data); setUseCustomSizeChart(false); setSizeChart({ unit: "inches", columns: [], rows: [] });
+    setProduct(data.data);
+    setUseCustomSizeChart(false);
+    setSizeChart({ unit: "inches", columns: [], rows: [] });
   }
+
+  const selectedCategory = categories.find((c) => c._id === categoryId);
 
   if (!id) return <div style={{ padding: 40, fontFamily: "var(--font-body)" }}>Loading route…</div>;
   if (!product) return (
@@ -152,15 +205,55 @@ export default function ProductDetailsPage() {
   return (
     <>
       <style>{`
-        /* Page-specific only — tokens from globals.css */
         .pd-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
         .pd-meta-price { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; }
         .pd-meta-price span { font-size: 14px; color: var(--color-subtle); font-weight: 400; margin-right: 2px; }
         .pd-meta-id { font-size: 11px; color: var(--color-ghost); font-family: monospace; }
         .pd-meta-slug { font-size: 12px; color: var(--color-subtle); background: var(--color-surface-alt); padding: 3px 8px; border-radius: var(--radius-sm); }
+        .pd-meta-category { font-size: 12px; color: var(--color-accent-dark); background: rgba(200,169,126,0.1); border: 1px solid rgba(200,169,126,0.25); padding: 3px 10px; border-radius: var(--radius-pill); font-weight: 600; }
         .pd-new-files { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
         .pd-new-file-chip { font-size: 11px; background: var(--color-surface-alt); color: var(--color-muted); padding: 3px 9px; border-radius: var(--radius-pill); }
         .pd-no-chart { padding: 20px; text-align: center; color: var(--color-ghost); font-size: 13px; background: var(--color-bg); border-radius: var(--radius-md); }
+
+        .as-cat-select {
+          width: 100%;
+          appearance: none;
+          -webkit-appearance: none;
+          background-color: var(--color-input-bg);
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C9589' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 14px center;
+          border: 1.5px solid var(--color-border);
+          border-radius: var(--radius-md);
+          padding: 11px 38px 11px 14px;
+          font-family: var(--font-body);
+          font-size: 14px;
+          color: var(--color-ink);
+          cursor: pointer;
+          transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+          outline: none;
+        }
+        .as-cat-select:focus {
+          border-color: var(--color-accent);
+          background-color: var(--color-input-focus);
+          box-shadow: 0 0 0 3px rgba(200,169,126,0.18);
+        }
+        .as-cat-select--placeholder { color: var(--color-ghost); }
+        .as-cat-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          margin-top: 8px;
+          padding: 3px 10px;
+          border-radius: var(--radius-pill);
+          font-size: 12px;
+          font-weight: 600;
+          font-family: var(--font-body);
+          background: rgba(200,169,126,0.12);
+          color: var(--color-accent-dark);
+          border: 1px solid rgba(200,169,126,0.3);
+        }
+        .as-cat-empty { font-size: 12px; color: var(--color-subtle); margin-top: 4px; font-style: italic; }
       `}</style>
 
       <div style={{ fontFamily: "var(--font-body)", background: "var(--color-bg)", minHeight: "100vh", color: "var(--color-ink)" }}>
@@ -179,6 +272,10 @@ export default function ProductDetailsPage() {
           <div className="pd-meta">
             <span className={`as-badge ${product.isActive ? "as-badge--active" : "as-badge--draft"}`}>{product.isActive ? "Active" : "Draft"}</span>
             <span className="pd-meta-price"><span>৳</span>{(product.price / 100).toFixed(2)}</span>
+            {/* Show current saved category from the product object */}
+            {product.category && typeof product.category === "object" && (
+              <span className="pd-meta-category">{product.category.name}</span>
+            )}
             <span className="pd-meta-slug">{product.slug}</span>
             <span className="pd-meta-id">{product._id}</span>
           </div>
@@ -234,7 +331,9 @@ export default function ProductDetailsPage() {
                       <option value="replace">Replace — swap all images</option>
                     </select>
                   </div>
-                  <label className={`as-drop-zone ${dragOver ? "as-drop-zone--active" : ""}`} style={{ marginTop: 4 }}
+                  <label
+                    className={`as-drop-zone ${dragOver ? "as-drop-zone--active" : ""}`}
+                    style={{ marginTop: 4 }}
                     onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={(e) => { e.preventDefault(); setDragOver(false); setNewFiles(e.dataTransfer.files); }}
@@ -267,7 +366,10 @@ export default function ProductDetailsPage() {
                   <div className="as-card-body">
                     <label className="as-toggle-row" style={{ marginBottom: 18 }}>
                       <div className="as-toggle">
-                        <input type="checkbox" checked={useCustomSizeChart} onChange={(e) => { setUseCustomSizeChart(e.target.checked); if (e.target.checked && sizeChart.columns.length === 0) setSizeChart(buildDefaultChart(sizes)); }} />
+                        <input type="checkbox" checked={useCustomSizeChart} onChange={(e) => {
+                          setUseCustomSizeChart(e.target.checked);
+                          if (e.target.checked && sizeChart.columns.length === 0) setSizeChart(buildDefaultChart(sizes));
+                        }} />
                         <div className="as-toggle-slider" />
                       </div>
                       <div>
@@ -349,6 +451,44 @@ export default function ProductDetailsPage() {
                     <label className="as-label">Product Name</label>
                     <input className="as-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Product name" />
                   </div>
+
+                  {/* ── Category ── */}
+                  <div className="as-field">
+                    <label className="as-label">Category</label>
+                    {categoriesLoading ? (
+                      <div className="as-cat-empty">Loading categories…</div>
+                    ) : categories.length === 0 ? (
+                      <div className="as-cat-empty">
+                        No categories found.{" "}
+                        <a href="/admin/categories" style={{ color: "var(--color-accent-dark)", textDecoration: "underline" }}>
+                          Create one first →
+                        </a>
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          className={`as-cat-select ${!categoryId ? "as-cat-select--placeholder" : ""}`}
+                          value={categoryId}
+                          onChange={(e) => setCategoryId(e.target.value)}
+                        >
+                          <option value="" disabled>Choose a category…</option>
+                          {categories.map((c) => (
+                            <option key={c._id} value={c._id}>{c.name}</option>
+                          ))}
+                        </select>
+                        {selectedCategory && (
+                          <div className="as-cat-badge">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                            {selectedCategory.name}
+                            <span style={{ color: "var(--color-ghost)", fontWeight: 400 }}>· {selectedCategory.slug}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
                   <div className="as-field">
                     <label className="as-label">Price (BDT)</label>
                     <div className="as-price-wrap">
@@ -356,6 +496,7 @@ export default function ProductDetailsPage() {
                       <span className="as-price-badge">BDT</span>
                     </div>
                   </div>
+
                   <div className="as-field">
                     <label className="as-toggle-row">
                       <div className="as-toggle">
@@ -414,7 +555,10 @@ export default function ProductDetailsPage() {
                   <label className="as-label">Select sizes</label>
                   <div className="as-size-selector" ref={sizeDropRef}>
                     <button type="button" ref={sizeTriggerRef} className={`as-size-trigger ${sizeDropOpen ? "as-size-trigger--open" : ""}`} onClick={() => setSizeDropOpen((p) => !p)}>
-                      {sizes.length === 0 ? <span className="as-size-trigger-placeholder">Choose sizes…</span> : <div className="as-size-chips-trigger">{sizes.map((s) => <span key={s} className="as-size-chip">{s}</span>)}</div>}
+                      {sizes.length === 0
+                        ? <span className="as-size-trigger-placeholder">Choose sizes…</span>
+                        : <div className="as-size-chips-trigger">{sizes.map((s) => <span key={s} className="as-size-chip">{s}</span>)}</div>
+                      }
                       <span className={`as-size-chevron ${sizeDropOpen ? "as-size-chevron--open" : ""}`}>▼</span>
                     </button>
                     {sizeDropOpen && (
