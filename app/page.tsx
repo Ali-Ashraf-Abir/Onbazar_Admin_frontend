@@ -134,11 +134,15 @@ export default function Home() {
       `}</style>
 
       <div style={{ fontFamily: "var(--font-body)", background: "var(--color-bg)", minHeight: "100vh", color: "var(--color-ink)" }}>
-        <header className="as-header">
+        <header className="as-header flex items-center justify-between">
           <span className="as-header-brand">Admin Studio</span>
-          <a href="/create" className="as-btn-accent">+ New Product</a>
-          <a href="/categories" className="as-btn-accent">+ New Category</a>
+
+          <div className="flex items-center gap-6 px-4">
+            <a href="/create" className="as-btn-accent inline-flex">+ New Product</a>
+            <a href="/categories" className="as-btn-accent inline-flex">+ New Category</a>
+          </div>
         </header>
+
 
         <div className="as-body as-body--wide">
           <div className="as-title-row">
