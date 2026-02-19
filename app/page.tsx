@@ -8,6 +8,8 @@ const PRESET_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "XX
 
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
+  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState<any>(null);
@@ -20,7 +22,7 @@ export default function Home() {
 
   const [applied, setApplied] = useState({
     q: "", isActive: "true", sort: "newest",
-    minPrice: "", maxPrice: "", size: "", page: 1,
+    minPrice: "", maxPrice: "", size: "", category: "", page: 1,
   });
 
   async function loadProducts(a: typeof applied) {
@@ -30,6 +32,7 @@ export default function Home() {
       params.set("page", String(a.page));
       params.set("limit", "8");
       if (a.q) params.set("q", a.q);
+      if (a.category) params.set("category", a.category);
       if (a.isActive) params.set("isActive", a.isActive);
       if (a.sort) params.set("sort", a.sort);
       if (a.minPrice) params.set("minPrice", String(Math.round(Number(a.minPrice) * 100)));
@@ -43,17 +46,33 @@ export default function Home() {
   }
 
   useEffect(() => { loadProducts(applied); }, [applied]);
+  useEffect(() => {
+    fetch(`${API}/categories`)
+      .then((r) => r.json())
+      .then((d) => setCategories(d.data || []))
+      .catch(() => { });
+  }, []);
 
-  function applyFilters() { setApplied({ q, isActive, sort, minPrice, maxPrice, size, page: 1 }); }
+  function applyFilters() {
+    setApplied({ q, isActive, sort, minPrice, maxPrice, size, category, page: 1 });
+  }
   function resetFilters() {
-    const d = { q: "", isActive: "true", sort: "newest", minPrice: "", maxPrice: "", size: "", page: 1 };
-    setQ(""); setIsActive("true"); setSort("newest"); setMinPrice(""); setMaxPrice(""); setSize(""); setPage(1);
+    const d = { q: "", isActive: "true", sort: "newest", minPrice: "", maxPrice: "", size: "", category: "", page: 1 };
+    setQ(""); setIsActive("true"); setSort("newest"); setMinPrice(""); setMaxPrice(""); setSize(""); setCategory(""); setPage(1);
     setApplied(d);
   }
   function goToPage(p: number) { setPage(p); setApplied({ ...applied, page: p }); }
 
-  const hasActiveFilters = !!(applied.q || applied.minPrice || applied.maxPrice || applied.size || applied.isActive !== "true" || applied.sort !== "newest");
-  const hasPendingChanges = q !== applied.q || isActive !== applied.isActive || sort !== applied.sort || minPrice !== applied.minPrice || maxPrice !== applied.maxPrice || size !== applied.size;
+  const hasActiveFilters = !!(
+    applied.q || applied.minPrice || applied.maxPrice ||
+    applied.size || applied.category ||
+    applied.isActive !== "true" || applied.sort !== "newest"
+  );
+
+  const hasPendingChanges =
+    q !== applied.q || isActive !== applied.isActive || sort !== applied.sort ||
+    minPrice !== applied.minPrice || maxPrice !== applied.maxPrice ||
+    size !== applied.size || category !== applied.category;
 
   return (
     <>
@@ -173,6 +192,16 @@ export default function Home() {
                 <option value="price_desc">Price: High → Low</option>
                 <option value="name_asc">Name A → Z</option>
                 <option value="name_desc">Name Z → A</option>
+              </select>
+              <select
+                className="as-select"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">All categories</option>
+                {categories.map((c: any) => (
+                  <option key={c._id} value={c._id}>{c.name}</option>
+                ))}
               </select>
               <div className="hp-price-group">
                 <input className="hp-price-input" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} placeholder="Min ৳" type="number" min="0" />
