@@ -7,80 +7,78 @@
    DESIGN TOKENS
    ───────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Palette */
-  --color-bg: #F7F4EF;
-  /* warm off-white page background */
-  --color-surface: #FFFFFF;
-  /* card / panel surfaces */
-  --color-surface-alt: #F0EDE7;
-  /* subtle hover / divider */
-  --color-input-bg: #F7F4EF;
-  /* unfocused input fill */
-  --color-input-focus: #FFFDF9;
-  /* focused input fill */
+  /* ── Core palette ── */
+  --bw-bg: #ffffff;
+  --bw-bg-alt: #f5f5f5;
+  --bw-surface: #ffffff;
+  --bw-surface-alt: #f0f0f0;
+  --bw-border: #e5e5e5;
+  --bw-border-strong: #d4d4d4;
+  --bw-divider: #ebebeb;
 
-  --color-ink: #1A1814;
-  /* primary text / header bg */
-  --color-ink-hover: #2E2A24;
-  /* ink hover (buttons) */
-  --color-muted: #6B6660;
-  /* secondary text */
-  --color-subtle: #9C9589;
-  /* placeholder / labels */
-  --color-ghost: #BDB8AF;
-  /* disabled / decorative */
+  /* ── Text ── */
+  --bw-ink: #0a0a0a;
+  --bw-ink-secondary: #404040;
+  --bw-muted: #737373;
+  --bw-ghost: #a3a3a3;
+  --bw-placeholder: #c4c4c4;
 
-  --color-border: #E8E4DC;
-  /* card / input borders */
-  --color-divider: #F0EDE7;
-  /* inner dividers */
-  --color-border-dashed: #D4CFC6;
-  /* dashed add-row borders */
+  /* ── Interactive ── */
+  --bw-ink-hover: #262626;
+  --bw-input-bg: #f5f5f5;
+  --bw-input-focus: #fafafa;
+  --bw-focus-ring: rgba(10, 10, 10, 0.15);
 
-  --color-accent: #C8A97E;
-  /* amber — focus rings / CTAs */
-  --color-accent-dark: #A07840;
-  /* amber hover text */
-  --color-accent-hover: #B8945E;
-  /* amber button hover */
+  /* ── Semantic / status ── */
+  --bw-green: #16a34a;
+  --bw-green-bg: #f0fdf4;
+  --bw-red: #dc2626;
+  --bw-red-bg: #fef2f2;
+  --bw-blue: #2563eb;
+  --bw-blue-bg: #eff6ff;
+  --bw-indigo: #4f46e5;
+  --bw-indigo-bg: rgba(79, 70, 229, 0.08);
+  --bw-amber: #d97706;
 
-  --color-green: #2C6B4F;
-  /* active / cover badge */
-  --color-green-bg: #F0FAF5;
-  /* green hover bg */
-  --color-green-muted: rgba(44, 107, 79, 0.12);
-  /* cover ring */
+  /* ── Shadows ── */
+  --bw-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --bw-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --bw-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10), 0 4px 8px rgba(0, 0, 0, 0.04);
+  --bw-shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
 
-  --color-red: #C0392B;
-  /* destructive / remove */
-  --color-red-bg: #FFE8E8;
-  /* remove hover bg */
-  --color-red-surface: #FFF5F5;
-  /* img remove hover */
+  /* ── Radius ── */
+  --bw-radius-sm: 6px;
+  --bw-radius-md: 10px;
+  --bw-radius-lg: 14px;
+  --bw-radius-xl: 18px;
+  --bw-radius-pill: 9999px;
 
-  --color-header-text: #F7F4EF;
-  /* text on dark header */
+  /* ── Typography ── */
+  --bw-font-display: 'DM Serif Display', 'Georgia', serif;
+  --bw-font-body: 'DM Sans', 'Helvetica Neue', sans-serif;
+  --bw-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
 
-  /* Typography */
-  --font-display: 'DM Serif Display', serif;
-  --font-body: 'DM Sans', sans-serif;
+/* ── Dark mode override (opt-in via [data-theme="dark"]) ── */
+[data-theme="dark"] {
+  --bw-bg: #0a0a0a;
+  --bw-bg-alt: #141414;
+  --bw-surface: #161616;
+  --bw-surface-alt: #1e1e1e;
+  --bw-border: #2a2a2a;
+  --bw-border-strong: #3a3a3a;
+  --bw-divider: #222222;
 
-  /* Radii */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-pill: 20px;
+  --bw-ink: #fafafa;
+  --bw-ink-secondary: #d4d4d4;
+  --bw-muted: #a3a3a3;
+  --bw-ghost: #737373;
+  --bw-placeholder: #525252;
 
-  /* Shadows */
-  --shadow-card: 0 4px 24px rgba(26, 24, 20, 0.06);
-  --shadow-card-hover: 0 8px 32px rgba(26, 24, 20, 0.10);
-  --shadow-drop: 0 8px 32px rgba(26, 24, 20, 0.12);
-
-  /* Transitions */
-  --transition-fast: 0.15s;
-  --transition-base: 0.2s;
-  --transition-slow: 0.25s;
+  --bw-ink-hover: #e5e5e5;
+  --bw-input-bg: #1e1e1e;
+  --bw-input-focus: #252525;
+  --bw-focus-ring: rgba(255, 255, 255, 0.12);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
