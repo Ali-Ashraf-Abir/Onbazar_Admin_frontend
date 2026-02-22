@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 
-export default function LoginPage() {
+/* ─── Inner component that uses useSearchParams ─── */
+function LoginForm() {
   const { login, user, isLoading } = useAuth();
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -281,14 +282,12 @@ export default function LoginPage() {
                   onMouseLeave={(e) => (e.currentTarget.style.color = "var(--bw-ghost)")}
                 >
                   {showPass ? (
-                    /* Eye-off icon */
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
                       <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
                       <line x1="1" y1="1" x2="23" y2="23" />
                     </svg>
                   ) : (
-                    /* Eye icon */
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                       <circle cx="12" cy="12" r="3" />
@@ -335,5 +334,29 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ─── Fallback shown during SSR / before hydration ─── */
+function LoginFallback() {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: "var(--bw-bg)" }}
+    >
+      <span
+        className="w-8 h-8 rounded-full border-2 border-transparent animate-spin"
+        style={{ borderTopColor: "var(--bw-ink)" }}
+      />
+    </div>
+  );
+}
+
+/* ─── Page export wraps LoginForm in Suspense ─── */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
   );
 }
