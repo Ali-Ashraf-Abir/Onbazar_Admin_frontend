@@ -7,17 +7,17 @@ const API = process.env.NEXT_PUBLIC_API_URL as string;
 /* ─────────────────────── constants ─────────────────────── */
 
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  pending:    { bg: "rgba(245,158,11,0.12)",  color: "#d97706", label: "Pending"    },
-  confirmed:  { bg: "rgba(59,130,246,0.12)",  color: "#2563eb", label: "Confirmed"  },
-  processing: { bg: "rgba(99,102,241,0.12)",  color: "#4f46e5", label: "Processing" },
-  shipped:    { bg: "rgba(139,92,246,0.12)",  color: "#7c3aed", label: "Shipped"    },
-  delivered:  { bg: "rgba(34,197,94,0.12)",   color: "#16a34a", label: "Delivered"  },
-  cancelled:  { bg: "rgba(239,68,68,0.12)",   color: "#dc2626", label: "Cancelled"  },
-  refunded:   { bg: "rgba(249,115,22,0.12)",  color: "#ea580c", label: "Refunded"   },
+  pending: { bg: "rgba(245,158,11,0.12)", color: "#d97706", label: "Pending" },
+  confirmed: { bg: "rgba(59,130,246,0.12)", color: "#2563eb", label: "Confirmed" },
+  processing: { bg: "rgba(99,102,241,0.12)", color: "#4f46e5", label: "Processing" },
+  shipped: { bg: "rgba(139,92,246,0.12)", color: "#7c3aed", label: "Shipped" },
+  delivered: { bg: "rgba(34,197,94,0.12)", color: "#16a34a", label: "Delivered" },
+  cancelled: { bg: "rgba(239,68,68,0.12)", color: "#dc2626", label: "Cancelled" },
+  refunded: { bg: "rgba(249,115,22,0.12)", color: "#ea580c", label: "Refunded" },
 };
 
 const PAYMENT_STYLES: Record<string, { bg: string; color: string }> = {
-  COD:   { bg: "rgba(100,116,139,0.12)", color: "#475569" },
+  COD: { bg: "rgba(100,116,139,0.12)", color: "#475569" },
   Bkash: { bg: "rgba(236,72,153,0.12)", color: "#db2777" },
 };
 
@@ -39,14 +39,14 @@ function timeAgo(dateStr: string) {
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [meta,   setMeta]   = useState<any>(null);
+  const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [page,   setPage]   = useState(1);
+  const [page, setPage] = useState(1);
 
-  const [q,      setQ]      = useState("");
+  const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [method, setMethod] = useState("");
-  const [sort,   setSort]   = useState("newest");
+  const [sort, setSort] = useState("newest");
 
   const [applied, setApplied] = useState({ q: "", status: "", method: "", sort: "newest", page: 1 });
 
@@ -56,16 +56,16 @@ export default function AdminOrdersPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set("page",  String(a.page));
+      params.set("page", String(a.page));
       params.set("limit", "15");
-      if (a.q)      params.set("q",      a.q);
+      if (a.q) params.set("q", a.q);
       if (a.status) params.set("status", a.status);
       if (a.method) params.set("method", a.method);
-      if (a.sort)   params.set("sort",   a.sort);
-      const res  = await fetch(`${API}/admin/orders?${params}`);
+      if (a.sort) params.set("sort", a.sort);
+      const res = await fetch(`${API}/admin/orders?${params}`);
       const data = await res.json();
       setOrders(data.data || []);
-      setMeta(data.meta   || null);
+      setMeta(data.meta || null);
     } finally { setLoading(false); }
   }
 
@@ -78,8 +78,8 @@ export default function AdminOrdersPage() {
   }
   function goPage(p: number) { setPage(p); setApplied(a => ({ ...a, page: p })); }
 
-  const hasPending  = q !== applied.q || status !== applied.status || method !== applied.method || sort !== applied.sort;
-  const hasFilters  = !!(applied.q || applied.status || applied.method || applied.sort !== "newest");
+  const hasPending = q !== applied.q || status !== applied.status || method !== applied.method || sort !== applied.sort;
+  const hasFilters = !!(applied.q || applied.status || applied.method || applied.sort !== "newest");
 
   /* ─────────────────────── shared input style ─────────────────────── */
   const selectCls = [
@@ -97,9 +97,9 @@ export default function AdminOrdersPage() {
     <div
       className="min-h-screen font-sans"
       style={{
-        background:  "var(--bw-bg)",
-        color:       "var(--bw-ink)",
-        fontFamily:  "var(--bw-font-body)",
+        background: "var(--bw-bg)",
+        color: "var(--bw-ink)",
+        fontFamily: "var(--bw-font-body)",
       }}
     >
       {/* shimmer keyframe */}
@@ -145,9 +145,9 @@ export default function AdminOrdersPage() {
         <div
           className="flex flex-wrap gap-2.5 items-center p-4 mb-5 rounded-[var(--bw-radius-xl)]"
           style={{
-            background:  "var(--bw-surface)",
-            border:      "1px solid var(--bw-border)",
-            boxShadow:   "var(--bw-shadow-sm)",
+            background: "var(--bw-surface)",
+            border: "1px solid var(--bw-border)",
+            boxShadow: "var(--bw-shadow-sm)",
           }}
         >
           {/* Search */}
@@ -165,13 +165,13 @@ export default function AdminOrdersPage() {
               placeholder="Search by order #, name, phone, email…"
               className="w-full h-9 pl-9 pr-3 rounded-[var(--bw-radius-md)] text-[13px] outline-none transition-all duration-150"
               style={{
-                background:  "var(--bw-input-bg)",
-                color:       "var(--bw-ink)",
-                border:      "1.5px solid transparent",
-                fontFamily:  "var(--bw-font-body)",
+                background: "var(--bw-input-bg)",
+                color: "var(--bw-ink)",
+                border: "1.5px solid transparent",
+                fontFamily: "var(--bw-font-body)",
               }}
-              onFocus={e  => { e.currentTarget.style.borderColor = "var(--bw-border-strong)"; e.currentTarget.style.background = "var(--bw-input-focus)"; }}
-              onBlur={e   => { e.currentTarget.style.borderColor = "transparent";              e.currentTarget.style.background = "var(--bw-input-bg)"; }}
+              onFocus={e => { e.currentTarget.style.borderColor = "var(--bw-border-strong)"; e.currentTarget.style.background = "var(--bw-input-focus)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "var(--bw-input-bg)"; }}
             />
           </div>
 
@@ -201,11 +201,11 @@ export default function AdminOrdersPage() {
                 onClick={reset}
                 className="px-3.5 h-9 rounded-[var(--bw-radius-md)] text-[12px] font-semibold transition-colors duration-150"
                 style={{
-                  background:  "transparent",
-                  border:      "1.5px solid var(--bw-border)",
-                  color:       "var(--bw-muted)",
-                  fontFamily:  "var(--bw-font-body)",
-                  cursor:      "pointer",
+                  background: "transparent",
+                  border: "1.5px solid var(--bw-border)",
+                  color: "var(--bw-muted)",
+                  fontFamily: "var(--bw-font-body)",
+                  cursor: "pointer",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--bw-red)"; e.currentTarget.style.color = "var(--bw-red)"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.color = "var(--bw-muted)"; }}
@@ -217,11 +217,11 @@ export default function AdminOrdersPage() {
               onClick={apply}
               className="flex items-center gap-1.5 px-4 h-9 rounded-[var(--bw-radius-md)] text-[13px] font-bold transition-all duration-150"
               style={{
-                background:  hasPending ? "var(--bw-amber)" : "var(--bw-ink)",
-                color:       hasPending ? "#0a0a0a"         : "var(--bw-bg)",
-                border:      "none",
-                fontFamily:  "var(--bw-font-body)",
-                cursor:      "pointer",
+                background: hasPending ? "var(--bw-amber)" : "var(--bw-ink)",
+                color: hasPending ? "#0a0a0a" : "var(--bw-bg)",
+                border: "none",
+                fontFamily: "var(--bw-font-body)",
+                cursor: "pointer",
               }}
             >
               {hasPending && (
@@ -229,8 +229,8 @@ export default function AdminOrdersPage() {
                   className="w-1.5 h-1.5 rounded-full"
                   style={{
                     background: "var(--bw-ink)",
-                    animation:  "bw-pulse 1.2s infinite",
-                    display:    "inline-block",
+                    animation: "bw-pulse 1.2s infinite",
+                    display: "inline-block",
                   }}
                 />
               )}
@@ -244,8 +244,8 @@ export default function AdminOrdersPage() {
           className="rounded-[var(--bw-radius-xl)] overflow-hidden"
           style={{
             background: "var(--bw-surface)",
-            border:     "1px solid var(--bw-border)",
-            boxShadow:  "var(--bw-shadow-sm)",
+            border: "1px solid var(--bw-border)",
+            boxShadow: "var(--bw-shadow-sm)",
           }}
         >
           <table className="w-full border-collapse">
@@ -270,12 +270,12 @@ export default function AdminOrdersPage() {
                       <td key={j} className="px-4 py-4">
                         <div
                           style={{
-                            height:             14,
-                            width:              w,
-                            borderRadius:       4,
-                            background:         `linear-gradient(90deg, var(--bw-surface-alt) 25%, var(--bw-border) 50%, var(--bw-surface-alt) 75%)`,
-                            backgroundSize:     "200% 100%",
-                            animation:          `bw-shimmer 1.4s ${i * 0.05}s infinite`,
+                            height: 14,
+                            width: w,
+                            borderRadius: 4,
+                            background: `linear-gradient(90deg, var(--bw-surface-alt) 25%, var(--bw-border) 50%, var(--bw-surface-alt) 75%)`,
+                            backgroundSize: "200% 100%",
+                            animation: `bw-shimmer 1.4s ${i * 0.05}s infinite`,
                           }}
                         />
                       </td>
@@ -287,16 +287,16 @@ export default function AdminOrdersPage() {
                   <td colSpan={7} className="py-16 text-center">
                     <div className="text-4xl opacity-30 mb-3">📋</div>
                     <p className="text-[15px] font-semibold" style={{ color: "var(--bw-ink)" }}>No orders found</p>
-                    <p className="text-[13px] mt-1"         style={{ color: "var(--bw-ghost)" }}>Try adjusting your filters</p>
+                    <p className="text-[13px] mt-1" style={{ color: "var(--bw-ghost)" }}>Try adjusting your filters</p>
                   </td>
                 </tr>
               ) : (
                 orders.map((o: any) => {
-                  const st  = STATUS_STYLES[o.status]           || STATUS_STYLES.pending;
-                  const pm  = PAYMENT_STYLES[o.payment?.method] || PAYMENT_STYLES.COD;
+                  const st = STATUS_STYLES[o.status] || STATUS_STYLES.pending;
+                  const pm = PAYMENT_STYLES[o.payment?.method] || PAYMENT_STYLES.COD;
                   const mgn = o.analytics?.estimatedProfit;
                   const cur = o.pricing?.currency || "BDT";
-
+                  const delivery = o.pricing?.deliveryCharge || null;
                   return (
                     <tr
                       key={o._id}
@@ -325,7 +325,7 @@ export default function AdminOrdersPage() {
                           {o.delivery?.fullName}
                         </div>
                         <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-muted)" }}>{o.delivery?.phone}</div>
-                        <div className="text-[11px]"          style={{ color: "var(--bw-muted)" }}>{o.delivery?.email}</div>
+                        <div className="text-[11px]" style={{ color: "var(--bw-muted)" }}>{o.delivery?.email}</div>
                       </td>
 
                       {/* Items */}
@@ -348,8 +348,20 @@ export default function AdminOrdersPage() {
                           >
                             {mgn >= 0 ? "+" : ""}{fmt(mgn, cur)} margin
                           </div>
+
                         ) : (
                           <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-ghost)" }}>no cost data</div>
+                        )}
+                        {delivery != null ? (
+                          <div
+                            className="text-[11px] font-semibold tabular-nums mt-0.5"
+                            style={{ color: delivery >= 0 ? "var(--bw-green)" : "var(--bw-red)" }}
+                          >
+                            {delivery >= 0 ? "+" : ""}{delivery} delivery charge
+                          </div>
+
+                        ) : (
+                          <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-ghost)" }}>no delivery charge Data</div>
                         )}
                       </td>
 
@@ -381,7 +393,7 @@ export default function AdminOrdersPage() {
                       {/* Location */}
                       <td className="px-4 py-3">
                         <div className="text-[12px] font-medium" style={{ color: "var(--bw-muted)" }}>{o.delivery?.zilla}</div>
-                        <div className="text-[11px]"             style={{ color: "var(--bw-ghost)" }}>{o.delivery?.thana}</div>
+                        <div className="text-[11px]" style={{ color: "var(--bw-ghost)" }}>{o.delivery?.thana}</div>
                       </td>
                     </tr>
                   );
@@ -437,12 +449,12 @@ function PagBtn({
       disabled={disabled}
       className="w-[34px] h-[34px] rounded-[var(--bw-radius-md)] flex items-center justify-center text-[13px] font-medium transition-all duration-100"
       style={{
-        background:  active ? "var(--bw-ink)"    : "var(--bw-surface)",
-        color:       active ? "var(--bw-bg)"     : "var(--bw-muted)",
-        border:      active ? "1.5px solid var(--bw-ink)" : "1.5px solid var(--bw-border)",
-        opacity:     disabled ? 0.3 : 1,
-        cursor:      disabled ? "not-allowed" : "pointer",
-        fontFamily:  "var(--bw-font-body)",
+        background: active ? "var(--bw-ink)" : "var(--bw-surface)",
+        color: active ? "var(--bw-bg)" : "var(--bw-muted)",
+        border: active ? "1.5px solid var(--bw-ink)" : "1.5px solid var(--bw-border)",
+        opacity: disabled ? 0.3 : 1,
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontFamily: "var(--bw-font-body)",
       }}
     >
       {children}

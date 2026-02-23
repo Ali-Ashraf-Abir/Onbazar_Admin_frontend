@@ -53,19 +53,19 @@ function fmtPrice(n: number, currency = "BDT") {
 /* ═══════════════════════════════════════════════════════ */
 
 export default function AdminProductsPage() {
-  const [products, setProducts]   = useState<any[]>([]);
-  const [category, setCategory]   = useState("");
+  const [products, setProducts] = useState<any[]>([]);
+  const [category, setCategory] = useState("");
   const [categories, setCategories] = useState<any[]>([]);
-  const [q, setQ]                 = useState("");
-  const [page, setPage]           = useState(1);
-  const [meta, setMeta]           = useState<any>(null);
-  const [isActive, setIsActive]   = useState("true");
-  const [sort, setSort]           = useState("newest");
-  const [minPrice, setMinPrice]   = useState("");
-  const [maxPrice, setMaxPrice]   = useState("");
-  const [size, setSize]           = useState("");
-  const [hasSize, setHasSize]     = useState("");
-  const [loading, setLoading]     = useState(false);
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState<any>(null);
+  const [isActive, setIsActive] = useState("true");
+  const [sort, setSort] = useState("newest");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [size, setSize] = useState("");
+  const [hasSize, setHasSize] = useState("");
+  const [loading, setLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [applied, setApplied] = useState({
@@ -82,14 +82,14 @@ export default function AdminProductsPage() {
       const params = new URLSearchParams();
       params.set("page", String(a.page));
       params.set("limit", "8");
-      if (a.q)        params.set("q",        a.q);
+      if (a.q) params.set("q", a.q);
       if (a.category) params.set("category", a.category);
       if (a.isActive) params.set("isActive", a.isActive);
-      if (a.sort)     params.set("sort",     a.sort);
-      if (a.hasSize)  params.set("hasSize",  a.hasSize);
+      if (a.sort) params.set("sort", a.sort);
+      if (a.hasSize) params.set("hasSize", a.hasSize);
       if (a.minPrice) params.set("minPrice", a.minPrice);
       if (a.maxPrice) params.set("maxPrice", a.maxPrice);
-      if (a.size)     params.set("size",     a.size);
+      if (a.size) params.set("size", a.size);
 
       const data = await api.get<any>(`/admin/products?${params.toString()}`);
       setProducts(data.data || []);
@@ -103,7 +103,7 @@ export default function AdminProductsPage() {
   useEffect(() => {
     api.get<any>("/categories")
       .then((d) => setCategories(d.data || []))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /* ─────────────────────── filter actions ─────────────────────── */
@@ -166,12 +166,18 @@ export default function AdminProductsPage() {
             <h1 className="text-2xl sm:text-3xl tracking-tight" style={{ fontFamily: "var(--bw-font-display)" }}>
               Products
             </h1>
+
             {meta && (
               <p className="mt-0.5 text-sm" style={{ color: "var(--bw-muted)" }}>
                 {meta.total ?? products.length} product{(meta.total ?? products.length) !== 1 ? "s" : ""}
                 {meta.totalPages > 1 && ` · Page ${meta.page} of ${meta.totalPages}`}
               </p>
             )}
+            <div className="mt-2">
+              <a href="/admin/products/create" className="px-4 py-2 bg-[var(--bw-ink)] text-[var(--bw-bg)] rounded-md text-sm font-medium ">
+                Create Product
+              </a>
+            </div>
           </div>
 
           {/* Mobile filter toggle */}
@@ -198,9 +204,8 @@ export default function AdminProductsPage() {
 
         {/* ── Filters Panel ── */}
         <div
-          className={`rounded-[var(--bw-radius-xl)] p-4 sm:p-5 mb-5 sm:mb-6 flex flex-col gap-4 ${
-            filtersOpen ? "flex" : "hidden sm:flex"
-          }`}
+          className={`rounded-[var(--bw-radius-xl)] p-4 sm:p-5 mb-5 sm:mb-6 flex flex-col gap-4 ${filtersOpen ? "flex" : "hidden sm:flex"
+            }`}
           style={{
             background: "var(--bw-surface)",
             border: "1px solid var(--bw-border)",
@@ -359,6 +364,7 @@ export default function AdminProductsPage() {
         </div>
 
         {/* ── Product Grid ── */}
+
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {loading ? (
             Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} delay={i * 70} />)
@@ -374,12 +380,12 @@ export default function AdminProductsPage() {
             </div>
           ) : (
             products.map((p: any) => {
-              const sp       = p.pricing?.sellingPrice ?? 0;
+              const sp = p.pricing?.sellingPrice ?? 0;
               const currency = p.pricing?.currency ?? "BDT";
-              const ep       = effectivePrice(p);
-              const cost     = totalCost(p);
-              const mgn      = margin(p);
-              const mgnPct   = marginPct(p);
+              const ep = effectivePrice(p);
+              const cost = totalCost(p);
+              const mgn = margin(p);
+              const mgnPct = marginPct(p);
               const hasDiscount = p.discount && ep < sp;
 
               return (
@@ -394,13 +400,13 @@ export default function AdminProductsPage() {
                     textDecoration: "none",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow  = "var(--bw-shadow-hover)";
-                    e.currentTarget.style.transform  = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "var(--bw-shadow-hover)";
+                    e.currentTarget.style.transform = "translateY(-2px)";
                     e.currentTarget.style.borderColor = "var(--bw-border-strong)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow  = "";
-                    e.currentTarget.style.transform  = "";
+                    e.currentTarget.style.boxShadow = "";
+                    e.currentTarget.style.transform = "";
                     e.currentTarget.style.borderColor = "var(--bw-border)";
                   }}
                 >
@@ -427,8 +433,8 @@ export default function AdminProductsPage() {
                         className="text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full"
                         style={
                           p.isActive
-                            ? { background: "rgba(22,163,74,0.9)",  color: "#fff" }
-                            : { background: "rgba(10,10,10,0.6)",   color: "#fff" }
+                            ? { background: "rgba(22,163,74,0.9)", color: "#fff" }
+                            : { background: "rgba(10,10,10,0.6)", color: "#fff" }
                         }
                       >
                         {p.isActive ? "Active" : "Draft"}
