@@ -53,25 +53,26 @@ function fmtPrice(n: number, currency = "BDT") {
 /* ═══════════════════════════════════════════════════════ */
 
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [category, setCategory] = useState("");
-  const [categories, setCategories] = useState<any[]>([]);
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState<any>(null);
-  const [isActive, setIsActive] = useState("true");
-  const [sort, setSort] = useState("newest");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [size, setSize] = useState("");
-  const [hasSize, setHasSize] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [products,    setProducts]    = useState<any[]>([]);
+  const [category,   setCategory]    = useState("");
+  const [categories, setCategories]  = useState<any[]>([]);
+  const [q,          setQ]           = useState("");
+  const [page,       setPage]        = useState(1);
+  const [meta,       setMeta]        = useState<any>(null);
+  const [isActive,   setIsActive]    = useState("true");
+  const [sort,       setSort]        = useState("newest");
+  const [minPrice,   setMinPrice]    = useState("");
+  const [maxPrice,   setMaxPrice]    = useState("");
+  const [size,       setSize]        = useState("");
+  const [hasSize,    setHasSize]     = useState("");
+  const [isBestProduct, setIsBestProduct] = useState("");
+  const [loading,    setLoading]     = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [applied, setApplied] = useState({
     q: "", isActive: "true", sort: "newest",
     minPrice: "", maxPrice: "", size: "",
-    category: "", hasSize: "", page: 1,
+    category: "", hasSize: "", isBestProduct: "", page: 1,
   });
 
   /* ─────────────────────── fetch ─────────────────────── */
@@ -82,14 +83,15 @@ export default function AdminProductsPage() {
       const params = new URLSearchParams();
       params.set("page", String(a.page));
       params.set("limit", "8");
-      if (a.q) params.set("q", a.q);
-      if (a.category) params.set("category", a.category);
-      if (a.isActive) params.set("isActive", a.isActive);
-      if (a.sort) params.set("sort", a.sort);
-      if (a.hasSize) params.set("hasSize", a.hasSize);
-      if (a.minPrice) params.set("minPrice", a.minPrice);
-      if (a.maxPrice) params.set("maxPrice", a.maxPrice);
-      if (a.size) params.set("size", a.size);
+      if (a.q)            params.set("q",            a.q);
+      if (a.category)     params.set("category",     a.category);
+      if (a.isActive)     params.set("isActive",     a.isActive);
+      if (a.sort)         params.set("sort",         a.sort);
+      if (a.hasSize)      params.set("hasSize",      a.hasSize);
+      if (a.minPrice)     params.set("minPrice",     a.minPrice);
+      if (a.maxPrice)     params.set("maxPrice",     a.maxPrice);
+      if (a.size)         params.set("size",         a.size);
+      if (a.isBestProduct) params.set("isBestProduct", a.isBestProduct);
 
       const data = await api.get<any>(`/admin/products?${params.toString()}`);
       setProducts(data.data || []);
@@ -103,23 +105,24 @@ export default function AdminProductsPage() {
   useEffect(() => {
     api.get<any>("/categories")
       .then((d) => setCategories(d.data || []))
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   /* ─────────────────────── filter actions ─────────────────────── */
 
   function applyFilters() {
-    setApplied({ q, isActive, sort, minPrice, maxPrice, size, category, hasSize, page: 1 });
+    setApplied({ q, isActive, sort, minPrice, maxPrice, size, category, hasSize, isBestProduct, page: 1 });
     setFiltersOpen(false);
   }
 
   function resetFilters() {
     const d = {
       q: "", isActive: "true", sort: "newest", minPrice: "",
-      maxPrice: "", size: "", category: "", hasSize: "", page: 1,
+      maxPrice: "", size: "", category: "", hasSize: "", isBestProduct: "", page: 1,
     };
     setQ(""); setIsActive("true"); setSort("newest"); setMinPrice("");
-    setMaxPrice(""); setSize(""); setCategory(""); setHasSize(""); setPage(1);
+    setMaxPrice(""); setSize(""); setCategory(""); setHasSize("");
+    setIsBestProduct(""); setPage(1);
     setApplied(d);
   }
 
@@ -131,13 +134,15 @@ export default function AdminProductsPage() {
   const hasActiveFilters = !!(
     applied.q || applied.minPrice || applied.maxPrice ||
     applied.size || applied.category || applied.hasSize ||
+    applied.isBestProduct ||
     applied.isActive !== "true" || applied.sort !== "newest"
   );
 
   const hasPendingChanges =
     q !== applied.q || isActive !== applied.isActive || sort !== applied.sort ||
     minPrice !== applied.minPrice || maxPrice !== applied.maxPrice ||
-    size !== applied.size || category !== applied.category || hasSize !== applied.hasSize;
+    size !== applied.size || category !== applied.category ||
+    hasSize !== applied.hasSize || isBestProduct !== applied.isBestProduct;
 
   /* ─────────────────────── shared tw classes ─────────────────────── */
 
@@ -148,7 +153,6 @@ export default function AdminProductsPage() {
     "focus:border-[var(--bw-ink)] focus:bg-[var(--bw-input-focus)] focus:ring-2 focus:ring-[var(--bw-focus-ring)]";
 
   const selectBase = `${inputBase} cursor-pointer appearance-none`;
-
   const labelCls = "block text-[10px] font-bold uppercase tracking-widest mb-1.5 text-[var(--bw-ghost)]";
 
   /* ═══════════════════════════════════════════════════════ */
@@ -166,7 +170,6 @@ export default function AdminProductsPage() {
             <h1 className="text-2xl sm:text-3xl tracking-tight" style={{ fontFamily: "var(--bw-font-display)" }}>
               Products
             </h1>
-
             {meta && (
               <p className="mt-0.5 text-sm" style={{ color: "var(--bw-muted)" }}>
                 {meta.total ?? products.length} product{(meta.total ?? products.length) !== 1 ? "s" : ""}
@@ -174,7 +177,7 @@ export default function AdminProductsPage() {
               </p>
             )}
             <div className="mt-2">
-              <a href="/admin/products/create" className="px-4 py-2 bg-[var(--bw-ink)] text-[var(--bw-bg)] rounded-md text-sm font-medium ">
+              <a href="/admin/create" className="px-4 py-2 bg-[var(--bw-ink)] text-[var(--bw-bg)] rounded-md text-sm font-medium">
                 Create Product
               </a>
             </div>
@@ -204,20 +207,18 @@ export default function AdminProductsPage() {
 
         {/* ── Filters Panel ── */}
         <div
-          className={`rounded-[var(--bw-radius-xl)] p-4 sm:p-5 mb-5 sm:mb-6 flex flex-col gap-4 ${filtersOpen ? "flex" : "hidden sm:flex"
-            }`}
+          className={`rounded-[var(--bw-radius-xl)] p-4 sm:p-5 mb-5 sm:mb-6 flex flex-col gap-4 ${
+            filtersOpen ? "flex" : "hidden sm:flex"
+          }`}
           style={{
             background: "var(--bw-surface)",
             border: "1px solid var(--bw-border)",
             boxShadow: "var(--bw-shadow-sm)",
           }}
         >
-          {/* Search bar — always full width */}
+          {/* Search bar */}
           <div className="relative w-full">
-            <span
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
-              style={{ color: "var(--bw-ghost)" }}
-            >
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: "var(--bw-ghost)" }}>
               🔍
             </span>
             <input
@@ -229,8 +230,8 @@ export default function AdminProductsPage() {
             />
           </div>
 
-          {/* Grid of filter controls */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {/* Filter grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             <div>
               <label className={labelCls}>Status</label>
               <div className="relative">
@@ -253,6 +254,7 @@ export default function AdminProductsPage() {
                   <option value="price_desc">Price ↓</option>
                   <option value="name_asc">Name A→Z</option>
                   <option value="name_desc">Name Z→A</option>
+                  <option value="popular">Most Popular</option>
                 </select>
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none" style={{ color: "var(--bw-ghost)" }}>▼</span>
               </div>
@@ -278,6 +280,19 @@ export default function AdminProductsPage() {
                   <option value="">All sizing</option>
                   <option value="true">Has sizes</option>
                   <option value="false">One-size</option>
+                </select>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none" style={{ color: "var(--bw-ghost)" }}>▼</span>
+              </div>
+            </div>
+
+            {/* ── Best Product filter ── */}
+            <div>
+              <label className={labelCls}>Best Product</label>
+              <div className="relative">
+                <select className={selectBase} value={isBestProduct} onChange={(e) => setIsBestProduct(e.target.value)}>
+                  <option value="">All products</option>
+                  <option value="true">⭐ Best only</option>
+                  <option value="false">Non-best only</option>
                 </select>
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none" style={{ color: "var(--bw-ghost)" }}>▼</span>
               </div>
@@ -330,14 +345,8 @@ export default function AdminProductsPage() {
                 onClick={resetFilters}
                 className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-[var(--bw-radius-md)] border transition-all cursor-pointer"
                 style={{ background: "none", borderColor: "var(--bw-border)", color: "var(--bw-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--bw-red)";
-                  e.currentTarget.style.color = "var(--bw-red)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--bw-border)";
-                  e.currentTarget.style.color = "var(--bw-muted)";
-                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--bw-red)"; e.currentTarget.style.color = "var(--bw-red)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.color = "var(--bw-muted)"; }}
               >
                 ✕ Reset
               </button>
@@ -363,8 +372,34 @@ export default function AdminProductsPage() {
           </div>
         </div>
 
-        {/* ── Product Grid ── */}
+        {/* ── Active filter chips ── */}
+        {applied.isBestProduct === "true" && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
+              style={{
+                background: "var(--bw-bg-alt)",
+                borderColor: "var(--bw-border)",
+                color: "var(--bw-ink)",
+              }}
+            >
+              ⭐ Best Products only
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBestProduct("");
+                  setApplied((a) => ({ ...a, isBestProduct: "", page: 1 }));
+                }}
+                className="text-[10px] cursor-pointer border-none bg-transparent leading-none"
+                style={{ color: "var(--bw-ghost)" }}
+              >
+                ✕
+              </button>
+            </span>
+          </div>
+        )}
 
+        {/* ── Product Grid ── */}
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {loading ? (
             Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} delay={i * 70} />)
@@ -433,12 +468,23 @@ export default function AdminProductsPage() {
                         className="text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full"
                         style={
                           p.isActive
-                            ? { background: "rgba(22,163,74,0.9)", color: "#fff" }
-                            : { background: "rgba(10,10,10,0.6)", color: "#fff" }
+                            ? { background: "rgba(22,163,74,0.9)",  color: "#fff" }
+                            : { background: "rgba(10,10,10,0.6)",   color: "#fff" }
                         }
                       >
                         {p.isActive ? "Active" : "Draft"}
                       </span>
+
+                      {/* ── Best Product badge ── */}
+                      {p.isBestProduct && (
+                        <span
+                          className="text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full"
+                          style={{ background: "rgba(234,179,8,0.92)", color: "#713f12" }}
+                        >
+                          ⭐ Best
+                        </span>
+                      )}
+
                       {!p.hasSize && (
                         <span
                           className="text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full"
@@ -475,10 +521,7 @@ export default function AdminProductsPage() {
                       </span>
                     )}
 
-                    <p
-                      className="text-sm leading-snug tracking-tight"
-                      style={{ fontFamily: "var(--bw-font-display)" }}
-                    >
+                    <p className="text-sm leading-snug tracking-tight" style={{ fontFamily: "var(--bw-font-display)" }}>
                       {p.name}
                     </p>
 
@@ -520,22 +563,13 @@ export default function AdminProductsPage() {
                     )}
 
                     {/* Pricing block */}
-                    <div
-                      className="mt-2 pt-2.5 flex flex-col gap-1.5"
-                      style={{ borderTop: "1px solid var(--bw-border)" }}
-                    >
+                    <div className="mt-2 pt-2.5 flex flex-col gap-1.5" style={{ borderTop: "1px solid var(--bw-border)" }}>
                       <div className="flex justify-between items-baseline">
-                        <span
-                          className="text-[10px] font-semibold uppercase tracking-wider"
-                          style={{ color: "var(--bw-ghost)" }}
-                        >
+                        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--bw-ghost)" }}>
                           Price
                         </span>
                         <span className="flex items-baseline gap-1">
-                          <span
-                            className="text-base font-bold tracking-tight"
-                            style={{ color: "var(--bw-ink)" }}
-                          >
+                          <span className="text-base font-bold tracking-tight" style={{ color: "var(--bw-ink)" }}>
                             {fmtPrice(ep, currency)}
                           </span>
                           {hasDiscount && (
@@ -548,39 +582,38 @@ export default function AdminProductsPage() {
 
                       {cost != null && (
                         <div className="flex justify-between items-center">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--bw-ghost)" }}>
-                            Cost
-                          </span>
-                          <span className="text-[11px]" style={{ color: "var(--bw-muted)" }}>
-                            {fmtPrice(cost, currency)}
-                          </span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--bw-ghost)" }}>Cost</span>
+                          <span className="text-[11px]" style={{ color: "var(--bw-muted)" }}>{fmtPrice(cost, currency)}</span>
                         </div>
                       )}
 
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--bw-ghost)" }}>
-                          Margin
-                        </span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--bw-ghost)" }}>Margin</span>
                         <div className="flex items-center gap-1">
                           {mgn == null ? (
                             <span className="text-[11px]" style={{ color: "var(--bw-ghost)" }}>— not set</span>
                           ) : (
                             <>
-                              <span
-                                className="text-[11px] font-bold"
-                                style={{ color: mgn >= 0 ? "var(--bw-green)" : "var(--bw-red)" }}
-                              >
+                              <span className="text-[11px] font-bold" style={{ color: mgn >= 0 ? "var(--bw-green)" : "var(--bw-red)" }}>
                                 {mgn >= 0 ? "+" : ""}{fmtPrice(mgn, currency)}
                               </span>
                               {mgnPct && (
-                                <span className="text-[10px]" style={{ color: "var(--bw-ghost)" }}>
-                                  ({mgnPct}%)
-                                </span>
+                                <span className="text-[10px]" style={{ color: "var(--bw-ghost)" }}>({mgnPct}%)</span>
                               )}
                             </>
                           )}
                         </div>
                       </div>
+
+                      {/* Purchase count */}
+                      {p.purchaseCount > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--bw-ghost)" }}>Sold</span>
+                          <span className="text-[11px] font-semibold" style={{ color: "var(--bw-muted)" }}>
+                            {p.purchaseCount} unit{p.purchaseCount !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Footer */}
@@ -591,10 +624,7 @@ export default function AdminProductsPage() {
                       >
                         {p.slug}
                       </span>
-                      <span
-                        className="text-[10px]"
-                        style={{ color: "var(--bw-ghost)", fontFamily: "var(--bw-font-mono)" }}
-                      >
+                      <span className="text-[10px]" style={{ color: "var(--bw-ghost)", fontFamily: "var(--bw-font-mono)" }}>
                         {p._id.slice(-6)}
                       </span>
                     </div>
@@ -661,18 +691,8 @@ function SizePill({ label, active, onClick }: { label: string; active: boolean; 
           ? { background: "var(--bw-ink)", color: "var(--bw-bg)", border: "1.5px solid var(--bw-ink)" }
           : { background: "var(--bw-surface)", color: "var(--bw-muted)", border: "1.5px solid var(--bw-border)" }
       }
-      onMouseEnter={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = "var(--bw-ink)";
-          e.currentTarget.style.color = "var(--bw-ink)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          e.currentTarget.style.borderColor = "var(--bw-border)";
-          e.currentTarget.style.color = "var(--bw-muted)";
-        }
-      }}
+      onMouseEnter={(e) => { if (!active) { e.currentTarget.style.borderColor = "var(--bw-ink)"; e.currentTarget.style.color = "var(--bw-ink)"; } }}
+      onMouseLeave={(e) => { if (!active) { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.color = "var(--bw-muted)"; } }}
     >
       {label}
     </button>
@@ -680,44 +700,20 @@ function SizePill({ label, active, onClick }: { label: string; active: boolean; 
 }
 
 function SkeletonCard({ delay }: { delay: number }) {
-  const shimmer =
-    "linear-gradient(90deg,var(--bw-surface-alt) 25%,var(--bw-border) 50%,var(--bw-surface-alt) 75%)";
-
+  const shimmer = "linear-gradient(90deg,var(--bw-surface-alt) 25%,var(--bw-border) 50%,var(--bw-surface-alt) 75%)";
   return (
-    <div
-      className="rounded-[var(--bw-radius-lg)] overflow-hidden"
-      style={{ background: "var(--bw-surface)", border: "1px solid var(--bw-border)" }}
-    >
-      <div
-        className="w-full h-40 sm:h-48"
-        style={{ background: shimmer, backgroundSize: "200% 100%", animation: `bw-shimmer 1.4s ${delay}ms infinite` }}
-      />
+    <div className="rounded-[var(--bw-radius-lg)] overflow-hidden" style={{ background: "var(--bw-surface)", border: "1px solid var(--bw-border)" }}>
+      <div className="w-full h-40 sm:h-48" style={{ background: shimmer, backgroundSize: "200% 100%", animation: `bw-shimmer 1.4s ${delay}ms infinite` }} />
       <div className="p-3 sm:p-4 flex flex-col gap-3">
         {[["55%", 16], ["90%", 12], ["70%", 12], ["40%", 20]].map(([w, h], i) => (
-          <div
-            key={i}
-            className="rounded-md"
-            style={{
-              width: w, height: h,
-              background: shimmer,
-              backgroundSize: "200% 100%",
-              animation: `bw-shimmer 1.4s ${delay + i * 50}ms infinite`,
-            }}
-          />
+          <div key={i} className="rounded-md" style={{ width: w, height: h, background: shimmer, backgroundSize: "200% 100%", animation: `bw-shimmer 1.4s ${delay + i * 50}ms infinite` }} />
         ))}
       </div>
     </div>
   );
 }
 
-function PageBtn({
-  onClick, disabled, label, current = false,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  label: string;
-  current?: boolean;
-}) {
+function PageBtn({ onClick, disabled, label, current = false }: { onClick: () => void; disabled: boolean; label: string; current?: boolean }) {
   return (
     <button
       type="button"
@@ -729,18 +725,8 @@ function PageBtn({
           ? { background: "var(--bw-ink)", color: "var(--bw-bg)", border: "1.5px solid var(--bw-ink)" }
           : { background: "var(--bw-surface)", color: "var(--bw-muted)", border: "1.5px solid var(--bw-border)" }
       }
-      onMouseEnter={(e) => {
-        if (!disabled && !current) {
-          e.currentTarget.style.borderColor = "var(--bw-ink)";
-          e.currentTarget.style.color = "var(--bw-ink)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled && !current) {
-          e.currentTarget.style.borderColor = "var(--bw-border)";
-          e.currentTarget.style.color = "var(--bw-muted)";
-        }
-      }}
+      onMouseEnter={(e) => { if (!disabled && !current) { e.currentTarget.style.borderColor = "var(--bw-ink)"; e.currentTarget.style.color = "var(--bw-ink)"; } }}
+      onMouseLeave={(e) => { if (!disabled && !current) { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.color = "var(--bw-muted)"; } }}
     >
       {label}
     </button>

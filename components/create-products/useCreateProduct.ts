@@ -65,10 +65,11 @@ function uid() {
 
 export function useCreateProduct() {
   /* ── basic ── */
-  const [name,        setName]        = useState("");
-  const [isActive,    setIsActive]    = useState(true);
-  const [description, setDescription] = useState("");
-  const [bullets,     setBullets]     = useState<string[]>(["320 GSM", "Box Fit", "100% Cotton"]);
+  const [name,          setName]          = useState("");
+  const [isActive,      setIsActive]      = useState(true);
+  const [isBestProduct, setIsBestProduct] = useState(false);
+  const [description,   setDescription]   = useState("");
+  const [bullets,       setBullets]       = useState<string[]>(["320 GSM", "Box Fit", "100% Cotton"]);
 
   /* ── category ── */
   const [categories,        setCategories]        = useState<Category[]>([]);
@@ -279,7 +280,7 @@ export function useCreateProduct() {
   /* ─────────────────────── reset ─────────────────────── */
 
   const resetForm = useCallback(() => {
-    setName(""); setIsActive(true); setDescription("");
+    setName(""); setIsActive(true); setIsBestProduct(false); setDescription("");
     setBullets(["320 GSM", "Box Fit", "100% Cotton"]);
     setSizes(["M", "L", "XL", "2XL"]); setHasSize(true);
     setCategoryId("");
@@ -344,13 +345,14 @@ export function useCreateProduct() {
     setLoading(true);
     try {
       const fd = new FormData();
-      fd.append("name",     name.trim());
-      fd.append("category", categoryId);
-      fd.append("pricing",  JSON.stringify(pricingObj));
+      fd.append("name",          name.trim());
+      fd.append("category",      categoryId);
+      fd.append("pricing",       JSON.stringify(pricingObj));
       if (discountObj) fd.append("discount", JSON.stringify(discountObj));
-      fd.append("isActive", String(isActive));
-      fd.append("hasSize",  String(hasSize));
-      fd.append("details",  JSON.stringify({
+      fd.append("isActive",      String(isActive));
+      fd.append("isBestProduct", String(isBestProduct));
+      fd.append("hasSize",       String(hasSize));
+      fd.append("details",       JSON.stringify({
         description: description.trim(),
         bullets: bullets.map((b) => b.trim()).filter(Boolean),
       }));
@@ -388,7 +390,8 @@ export function useCreateProduct() {
     name, description, categoryId, sellingPrice, currency, costPrice,
     additionalCosts, hasDiscount, discountValue, discountType, discountStart,
     discountEnd, stockManaged, hasSize, sizeStockRows, stockQty, isActive,
-    bullets, sizes, useCustomSizeChart, sizeChart, allowedAddonsJson, images, resetForm,
+    isBestProduct, bullets, sizes, useCustomSizeChart, sizeChart,
+    allowedAddonsJson, images, resetForm,
   ]);
 
   /* ─────────────────────── derived ─────────────────────── */
@@ -403,6 +406,7 @@ export function useCreateProduct() {
     /* basic */
     name, setName,
     isActive, setIsActive,
+    isBestProduct, setIsBestProduct,
     description, setDescription,
     bullets, addBullet, updateBullet, removeBullet,
 

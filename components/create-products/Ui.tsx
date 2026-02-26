@@ -61,10 +61,18 @@ export function BwToggle({
 }) {
   return (
     <label className="flex items-center gap-3 cursor-pointer select-none">
+      {/* Hidden native checkbox — drives all click/keyboard/a11y behaviour */}
+      <input
+        type="checkbox"
+        className="sr-only"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+
+      {/* Visual track + thumb */}
       <div
-        className="relative flex-shrink-0 w-10 h-6 rounded-full transition-all duration-200 cursor-pointer"
+        className="relative flex-shrink-0 w-10 h-6 rounded-full transition-all duration-200"
         style={{ background: checked ? "var(--bw-ink)" : "var(--bw-border)" }}
-        onClick={() => onChange(!checked)}
       >
         <div
           className="absolute top-0.5 w-5 h-5 rounded-full transition-all duration-200"
@@ -75,6 +83,8 @@ export function BwToggle({
           }}
         />
       </div>
+
+      {/* Text */}
       <div>
         <div className="text-sm font-semibold" style={{ color: "var(--bw-ink)" }}>
           {label}
@@ -157,12 +167,8 @@ export function StockPill({
         style={{ background: inStock ? "var(--bw-green)" : "var(--bw-red)" }}
       />
       {compact
-        ? inStock
-          ? "In Stock"
-          : "Out"
-        : inStock
-        ? "In Stock"
-        : "Out of Stock"}
+        ? inStock ? "In Stock" : "Out"
+        : inStock ? "In Stock" : "Out of Stock"}
     </span>
   );
 }

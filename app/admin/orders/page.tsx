@@ -297,6 +297,8 @@ export default function AdminOrdersPage() {
                   const mgn = o.analytics?.estimatedProfit;
                   const cur = o.pricing?.currency || "BDT";
                   const delivery = o.pricing?.deliveryCharge || null;
+                  const partialRefund = o.refund?.refundType;
+                  const promo = o.promo || null;
                   return (
                     <tr
                       key={o._id}
@@ -363,6 +365,19 @@ export default function AdminOrdersPage() {
                         ) : (
                           <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-ghost)" }}>no delivery charge Data</div>
                         )}
+                        {
+                          promo != null ? (
+                            <div
+                              className="text-[11px] font-semibold tabular-nums mt-0.5"
+                              style={{ color: promo >= 0 ? "var(--bw-green)" : "var(--bw-red)" }}
+                            >
+                              {promo >= 0 ? "+" : ""}{fmt(promo.discountAmount, cur)} promo discount
+                            </div>
+
+                          ) : (
+                            ''
+                          )
+                        }
                       </td>
 
                       {/* Payment */}
@@ -382,12 +397,18 @@ export default function AdminOrdersPage() {
 
                       {/* Status */}
                       <td className="px-4 py-3">
-                        <span
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide whitespace-nowrap"
-                          style={{ background: st.bg, color: st.color }}
-                        >
-                          {st.label}
-                        </span>
+                        {
+                          partialRefund == 'partial' ? (
+                            <div
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide whitespace-nowrap text-red-100 bg-red-400 rounded-lg">
+                              Partially Refunded : {o.refund?.refundedAmount ? fmt(o.refund.refundedAmount, cur) : "N/A"}
+                            </div>) : <span
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide whitespace-nowrap"
+                              style={{ background: st.bg, color: st.color }}
+                            >
+                            {st.label}
+                          </span>
+                        }
                       </td>
 
                       {/* Location */}

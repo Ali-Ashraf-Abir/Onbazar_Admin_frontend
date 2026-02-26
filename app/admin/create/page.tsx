@@ -106,6 +106,8 @@ export default function CreateProductPage() {
           {/* ══ RIGHT column ══ */}
           <div>
             <BasicInfoCard
+              isBestProduct={store.isBestProduct}   
+              setIsBestProduct={store.setIsBestProduct}
               name={store.name}
               setName={store.setName}
               isActive={store.isActive}

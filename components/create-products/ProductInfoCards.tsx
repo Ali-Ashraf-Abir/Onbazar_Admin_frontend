@@ -12,11 +12,13 @@ import { PRESET_SIZES, CreateProductStore } from "./useCreateProduct";
 export function BasicInfoCard({
   name, setName,
   isActive, setIsActive,
+  isBestProduct, setIsBestProduct,
   categories, categoryId, setCategoryId,
   categoriesLoading, selectedCategory,
 }: Pick<CreateProductStore,
   | "name" | "setName"
   | "isActive" | "setIsActive"
+  | "isBestProduct" | "setIsBestProduct"
   | "categories" | "categoryId" | "setCategoryId"
   | "categoriesLoading" | "selectedCategory"
 >) {
@@ -90,20 +92,39 @@ export function BasicInfoCard({
           )}
         </div>
 
-        <BwToggle
-          checked={isActive}
-          onChange={setIsActive}
-          label={
-            <span className="flex items-center gap-2">
-              <span
-                className="w-2 h-2 rounded-full inline-block flex-shrink-0"
-                style={{ background: isActive ? "var(--bw-green)" : "var(--bw-ghost)" }}
-              />
-              {isActive ? "Active — Visible to customers" : "Draft — Hidden from store"}
-            </span>
-          }
-          desc="Toggle to publish or save as draft"
-        />
+        {/* ── Visibility & Badging toggles ── */}
+        <div className="flex flex-col gap-3">
+          <BwToggle
+            checked={isActive}
+            onChange={setIsActive}
+            label={
+              <span className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full inline-block flex-shrink-0"
+                  style={{ background: isActive ? "var(--bw-green)" : "var(--bw-ghost)" }}
+                />
+                {isActive ? "Active — Visible to customers" : "Draft — Hidden from store"}
+              </span>
+            }
+            desc="Toggle to publish or save as draft"
+          />
+
+          <BwToggle
+            checked={isBestProduct}
+            onChange={setIsBestProduct}
+            label={
+              <span className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full inline-block flex-shrink-0"
+                  style={{ background: isBestProduct ? "var(--bw-amber, #f59e0b)" : "var(--bw-ghost)" }}
+                />
+                {isBestProduct ? "Best Product — Featured badge on" : "Best Product — No badge"}
+              </span>
+            }
+            desc="Mark to surface this product in Best Sellers sections"
+          />
+        </div>
+
       </div>
     </div>
   );

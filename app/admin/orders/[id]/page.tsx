@@ -501,6 +501,19 @@ export default function AdminOrderDetailPage() {
                         <span className="font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{value}</span>
                       </div>
                     ))}
+                    {
+                      order.promo?.discountAmount ? <div
+                        className="flex justify-between text-[13px]  mt-2 pt-3"
+                        style={{  color: "var(--bw-muted)" }}
+                      >
+                        <span>Promo Discount</span>
+                        {
+                          order.promo?.discountAmount ? <span className="tabular-nums font-bold" style={{ color: "var(--bw-ink)" }}>-{fmt(order.promo?.discountAmount, cur)}</span> :
+                            ''
+                        }
+
+                      </div> : ''
+                    }
                     <div
                       className="flex justify-between text-[16px] font-bold mt-2 pt-3"
                       style={{ borderTop: "1px solid var(--bw-border)", color: "var(--bw-ink)" }}
