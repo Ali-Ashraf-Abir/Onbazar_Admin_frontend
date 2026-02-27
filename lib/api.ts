@@ -3,7 +3,7 @@
  * Central API client for the OnBazar Next.js admin panel.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 /* ── in-memory token (never localStorage) ──────────────────────────── */
 let accessToken: string | null = null;
