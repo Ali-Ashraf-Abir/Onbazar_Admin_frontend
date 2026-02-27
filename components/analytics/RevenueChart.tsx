@@ -68,7 +68,7 @@ export default function RevenueChart({ data, granularity, loading }: RevenueChar
             <stop offset="0%"   stopColor="var(--bw-green)" stopOpacity={0.2} />
             <stop offset="100%" stopColor="var(--bw-green)" stopOpacity={0.01} />
           </linearGradient>
-          <linearGradient id="gradRefunded" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="gradLost" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%"   stopColor="var(--bw-red)" stopOpacity={0.15} />
             <stop offset="100%" stopColor="var(--bw-red)" stopOpacity={0.01} />
           </linearGradient>
@@ -94,9 +94,9 @@ export default function RevenueChart({ data, granularity, loading }: RevenueChar
           wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
           formatter={(v) => <span style={{ color: "var(--bw-muted)" }}>{v}</span>}
         />
-        <Area type="monotone" dataKey="revenue"   name="Revenue"   stroke="var(--bw-ink)"  strokeWidth={2} fill="url(#gradRevenue)"  dot={false} activeDot={{ r: 4 }} />
-        <Area type="monotone" dataKey="profit"    name="Profit"    stroke="var(--bw-green)" strokeWidth={1.5} fill="url(#gradProfit)"   dot={false} activeDot={{ r: 3 }} strokeDasharray="4 2" />
-        <Area type="monotone" dataKey="refunded"  name="Refunded"  stroke="var(--bw-red)"  strokeWidth={1.5} fill="url(#gradRefunded)" dot={false} activeDot={{ r: 3 }} strokeDasharray="4 2" />
+        <Area type="monotone" dataKey="grossRevenue" name="Net Revenue"  stroke="var(--bw-ink)"   strokeWidth={2}   fill="url(#gradRevenue)" dot={false} activeDot={{ r: 4 }} />
+        <Area type="monotone" dataKey="profit"       name="Profit"       stroke="var(--bw-green)"  strokeWidth={1.5} fill="url(#gradProfit)"  dot={false} activeDot={{ r: 3 }} strokeDasharray="4 2" />
+        <Area type="monotone" dataKey="lostRevenue"  name="Lost Revenue" stroke="var(--bw-red)"    strokeWidth={1.5} fill="url(#gradLost)"    dot={false} activeDot={{ r: 3 }} strokeDasharray="4 2" />
       </AreaChart>
     </ResponsiveContainer>
   );
