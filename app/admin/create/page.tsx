@@ -4,6 +4,7 @@ import React from "react";
 import { useCreateProduct } from "../../../components/create-products/useCreateProduct";
 import { ImagesCard, PricingCard, AdvancedCard } from "../../../components/create-products/ProductFormCards";
 import { BasicInfoCard, DescriptionCard, KeyFeaturesCard, SizingCard, StockCard } from "../../../components/create-products/ProductInfoCards";
+import { VideoCard } from "../../../components/edit-products/EditInfoCards";
 
 export default function CreateProductPage() {
   const store = useCreateProduct();
@@ -106,7 +107,7 @@ export default function CreateProductPage() {
           {/* ══ RIGHT column ══ */}
           <div>
             <BasicInfoCard
-              isBestProduct={store.isBestProduct}   
+              isBestProduct={store.isBestProduct}
               setIsBestProduct={store.setIsBestProduct}
               name={store.name}
               setName={store.setName}
@@ -123,7 +124,12 @@ export default function CreateProductPage() {
               description={store.description}
               setDescription={store.setDescription}
             />
-
+            <VideoCard
+              videoType={store.videoType}
+              setVideoType={store.setVideoType}
+              videoUrl={store.videoUrl}
+              setVideoUrl={store.setVideoUrl}
+            />
             <KeyFeaturesCard
               bullets={store.bullets}
               addBullet={store.addBullet}

@@ -6,6 +6,7 @@ import {
   BwToggle, StockPill, AddRowBtn,
 } from "../create-products/Ui";
 import { PRESET_SIZES, EditProductStore } from "./useEditProduct";
+import { CreateProductStore } from "../create-products/useCreateProduct";
 
 /* ─────────────────────── Basic Info Card ─────────────────────── */
 
@@ -103,7 +104,123 @@ export function BasicInfoCard({
 }
 
 /* ─────────────────────── Description Card ─────────────────────── */
+/* ─────────────────────── Video Card ─────────────────────── */
 
+export function VideoCard({
+  videoType, setVideoType,
+  videoUrl,  setVideoUrl,
+}: Pick<CreateProductStore, "videoType" | "setVideoType" | "videoUrl" | "setVideoUrl">) {
+
+  const platforms = [
+    { val: "youtube",  icon: "▶", label: "YouTube"  },
+    { val: "facebook", icon: "f", label: "Facebook" },
+  ] as const;
+
+  const placeholder =
+    videoType === "youtube"  ? "https://youtube.com/watch?v=…"  :
+    videoType === "facebook" ? "https://facebook.com/watch?v=…" :
+    "Paste your video URL here";
+
+  return (
+    <div className={cardCls}>
+      <div className={cardHeaderCls}>
+        <div className={cardTitleCls}><span>🎬</span> Product Video</div>
+        <span className="text-xs" style={{ color: "var(--bw-ghost)" }}>Optional</span>
+      </div>
+      <div className="p-5 flex flex-col gap-4">
+
+        {/* Platform picker */}
+        <div>
+          <label className={labelCls}>Platform</label>
+          <div className="grid grid-cols-2 gap-2">
+            {platforms.map(({ val, icon, label }) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setVideoType(videoType === val ? "" : val)}
+                className="py-3 px-4 rounded-[var(--bw-radius-md)] text-sm font-semibold border cursor-pointer transition-all flex items-center justify-center gap-2"
+                style={
+                  videoType === val
+                    ? { border: "1.5px solid var(--bw-ink)", background: "var(--bw-bg-alt)", color: "var(--bw-ink)" }
+                    : { border: "1.5px solid var(--bw-border)", background: "var(--bw-input-bg)", color: "var(--bw-ghost)" }
+                }
+              >
+                <span
+                  className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                  style={{
+                    background: videoType === val
+                      ? (val === "youtube" ? "#ff0000" : "#1877f2")
+                      : "var(--bw-surface-alt)",
+                    color: videoType === val ? "#fff" : "var(--bw-ghost)",
+                  }}
+                >
+                  {icon}
+                </span>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* URL input */}
+        <div>
+          <label className={labelCls}>Video URL</label>
+          <input
+            className={inputCls}
+            type="url"
+            placeholder={placeholder}
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            disabled={!videoType}
+          />
+          {!videoType && (
+            <p className="text-xs mt-1.5" style={{ color: "var(--bw-ghost)" }}>
+              Select a platform first
+            </p>
+          )}
+        </div>
+
+        {/* Live preview */}
+        {videoType && videoUrl.trim() && (
+          <div
+            className="flex items-center gap-3 p-3 rounded-[var(--bw-radius-md)]"
+            style={{ background: "var(--bw-surface-alt)", border: "1.5px solid var(--bw-border)" }}
+          >
+            <span
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black flex-shrink-0"
+              style={{
+                background: videoType === "youtube" ? "#ff0000" : "#1877f2",
+                color: "#fff",
+              }}
+            >
+              {videoType === "youtube" ? "▶" : "f"}
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold capitalize" style={{ color: "var(--bw-ink)" }}>
+                {videoType} video linked
+              </p>
+              <p
+                className="text-xs truncate"
+                style={{ color: "var(--bw-ghost)", maxWidth: "220px" }}
+              >
+                {videoUrl}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setVideoType(""); setVideoUrl(""); }}
+              className="ml-auto w-7 h-7 flex items-center justify-center rounded-md text-xs border-none cursor-pointer flex-shrink-0"
+              style={{ background: "var(--bw-bg-alt)", color: "var(--bw-muted)" }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
 export function DescriptionCard({
   description, setDescription,
 }: Pick<EditProductStore, "description" | "setDescription">) {

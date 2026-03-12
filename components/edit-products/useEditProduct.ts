@@ -14,13 +14,13 @@ import api, { ApiError } from "../../lib/api";
 export const PRESET_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "Free Size"];
 
 export const COMMON_COST_KEYS: { key: string; label: string }[] = [
-  { key: "packaging",         label: "Packaging"          },
-  { key: "shipping",          label: "Shipping"           },
-  { key: "transactionFee",    label: "Transaction Fee"    },
-  { key: "adsCost",           label: "Ads Cost"           },
+  { key: "packaging", label: "Packaging" },
+  { key: "shipping", label: "Shipping" },
+  { key: "transactionFee", label: "Transaction Fee" },
+  { key: "adsCost", label: "Ads Cost" },
   { key: "manufacturingCost", label: "Manufacturing Cost" },
-  { key: "customDutyCost",    label: "Custom Duty"        },
-  { key: "storageCost",       label: "Storage Cost"       },
+  { key: "customDutyCost", label: "Custom Duty" },
+  { key: "storageCost", label: "Storage Cost" },
 ];
 
 export interface Category {
@@ -67,13 +67,17 @@ interface ProductData {
     total?: number;
     bySize?: Record<string, number>;
   };
+  video: {
+    type: "youtube" | "facebook";
+    url: string;
+  }
   sizeChart?: SizeChart;
   allowedAddons?: unknown;
   images: string[];
 }
 
-interface ProductApiResponse  { data: ProductData }
-interface PatchApiResponse    { data: ProductData }
+interface ProductApiResponse { data: ProductData }
+interface PatchApiResponse { data: ProductData }
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
@@ -83,62 +87,64 @@ export function useEditProduct() {
   const params = useParams();
   const id = params?.id as string;
 
-  const [product,      setProduct]      = useState<ProductData | null>(null);
-  const [saving,       setSaving]       = useState(false);
+  const [product, setProduct] = useState<ProductData | null>(null);
+  const [saving, setSaving] = useState(false);
   const [settingCover, setSettingCover] = useState(false);
 
   /* ── basic ── */
-  const [name,        setName]        = useState("");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [bullets,     setBullets]     = useState<string[]>([]);
-  const [isActive,    setIsActive]    = useState(true);
+  const [bullets, setBullets] = useState<string[]>([]);
+  const [isActive, setIsActive] = useState(true);
 
   /* ── category ── */
-  const [categories,        setCategories]        = useState<Category[]>([]);
-  const [categoryId,        setCategoryId]        = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
   const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   /* ── pricing ── */
-  const [sellingPrice,    setSellingPrice]    = useState("");
-  const [costPrice,       setCostPrice]       = useState("");
-  const [currency,        setCurrency]        = useState("BDT");
+  const [sellingPrice, setSellingPrice] = useState("");
+  const [costPrice, setCostPrice] = useState("");
+  const [currency, setCurrency] = useState("BDT");
   const [additionalCosts, setAdditionalCosts] = useState<CostEntry[]>([]);
   const [showCostSection, setShowCostSection] = useState(false);
 
   /* ── discount ── */
-  const [hasDiscount,   setHasDiscount]   = useState(false);
-  const [discountType,  setDiscountType]  = useState<"percentage" | "fixed">("percentage");
+  const [hasDiscount, setHasDiscount] = useState(false);
+  const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [discountValue, setDiscountValue] = useState("");
   const [discountStart, setDiscountStart] = useState("");
-  const [discountEnd,   setDiscountEnd]   = useState("");
+  const [discountEnd, setDiscountEnd] = useState("");
 
   /* ── sizes ── */
-  const [hasSize,         setHasSize]         = useState(true);
-  const [sizes,           setSizes]           = useState<string[]>([]);
-  const [sizeDropOpen,    setSizeDropOpen]    = useState(false);
+  const [hasSize, setHasSize] = useState(true);
+  const [sizes, setSizes] = useState<string[]>([]);
+  const [sizeDropOpen, setSizeDropOpen] = useState(false);
   const [customSizeInput, setCustomSizeInput] = useState("");
-  const sizeDropRef    = useRef<HTMLDivElement>(null);
+  const sizeDropRef = useRef<HTMLDivElement>(null);
   const sizeTriggerRef = useRef<HTMLButtonElement>(null);
 
   /* ── stock ── */
-  const [stockManaged,  setStockManaged]  = useState(false);
-  const [stockQty,      setStockQty]      = useState("");
+  const [stockManaged, setStockManaged] = useState(false);
+  const [stockQty, setStockQty] = useState("");
   const [sizeStockRows, setSizeStockRows] = useState<SizeStockEntry[]>([]);
 
   /* ── images ── */
-  const [newFiles,  setNewFiles]  = useState<FileList | null>(null);
-  const [dragOver,  setDragOver]  = useState(false);
+  const [newFiles, setNewFiles] = useState<FileList | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [imageMode, setImageMode] = useState("append");
 
   /* ── size chart ── */
-  const [showSizeChart,      setShowSizeChart]      = useState(false);
+  const [showSizeChart, setShowSizeChart] = useState(false);
   const [useCustomSizeChart, setUseCustomSizeChart] = useState(false);
-  const [sizeChart,          setSizeChart]          = useState<SizeChart>({ unit: "inches", columns: [], rows: [] });
+  const [sizeChart, setSizeChart] = useState<SizeChart>({ unit: "inches", columns: [], rows: [] });
 
   /* ── advanced ── */
-  const [showAdvanced,      setShowAdvanced]      = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [allowedAddonsJson, setAllowedAddonsJson] = useState("");
-
+  // ── video ── (with other state declarations)
+  const [videoType, setVideoType] = useState<"youtube" | "facebook" | "">("");
+  const [videoUrl, setVideoUrl] = useState("");
   /* ─────────────────────── fetch categories ─────────────────────── */
 
   useEffect(() => {
@@ -166,7 +172,8 @@ export function useEditProduct() {
       setDescription(p.details?.description || "");
       setBullets(p.details?.bullets || []);
       setIsActive(Boolean(p.isActive));
-
+      setVideoType((p.video?.type as "youtube" | "facebook" | "") || "");
+      setVideoUrl(p.video?.url || "");
       const cat = p.category;
       setCategoryId(typeof cat === "object" && cat !== null ? cat._id : (cat ?? ""));
 
@@ -197,11 +204,11 @@ export function useEditProduct() {
       }
 
       const loadedHasSize = p.hasSize !== false;
-      const loadedSizes   = p.sizes || [];
+      const loadedSizes = p.sizes || [];
       setHasSize(loadedHasSize);
       setSizes(loadedSizes);
 
-      const stock        = p.stock;
+      const stock = p.stock;
       const stockSummary = p.stockSummary;
       if (stock?.managed) {
         setStockManaged(true);
@@ -280,7 +287,7 @@ export function useEditProduct() {
 
   /* ─────────────────────── bullet helpers ─────────────────────── */
 
-  const addBullet    = useCallback(() => setBullets((p) => [...p, ""]), []);
+  const addBullet = useCallback(() => setBullets((p) => [...p, ""]), []);
   const updateBullet = useCallback((i: number, v: string) => {
     setBullets((p) => p.map((b, j) => (j === i ? v : b)));
   }, []);
@@ -402,7 +409,7 @@ export function useEditProduct() {
   /* ─────────────────────── save ─────────────────────── */
 
   const handlePatch = useCallback(async () => {
-    if (!categoryId)  return alert("Please select a category");
+    if (!categoryId) return alert("Please select a category");
     if (!sellingPrice || isNaN(Number(sellingPrice))) return alert("Enter a valid selling price");
 
     const pricingObj: Record<string, unknown> = { sellingPrice: Number(sellingPrice), currency };
@@ -418,7 +425,7 @@ export function useEditProduct() {
     if (hasDiscount && discountValue && !isNaN(Number(discountValue))) {
       discountObj = { type: discountType, value: Number(discountValue) };
       if (discountStart) discountObj.startDate = discountStart;
-      if (discountEnd)   discountObj.endDate   = discountEnd;
+      if (discountEnd) discountObj.endDate = discountEnd;
     }
 
     const stockObj: Record<string, unknown> = { managed: stockManaged };
@@ -436,15 +443,16 @@ export function useEditProduct() {
     }
 
     setSaving(true);
+
     try {
       const fd = new FormData();
-      fd.append("name",     name);
+      fd.append("name", name);
       fd.append("category", categoryId);
-      fd.append("pricing",  JSON.stringify(pricingObj));
+      fd.append("pricing", JSON.stringify(pricingObj));
       fd.append("discount", JSON.stringify(discountObj));
       fd.append("isActive", String(isActive));
-      fd.append("hasSize",  String(hasSize));
-      fd.append("details",  JSON.stringify({
+      fd.append("hasSize", String(hasSize));
+      fd.append("details", JSON.stringify({
         description,
         bullets: bullets.map((b) => b.trim()).filter(Boolean),
       }));
@@ -457,7 +465,7 @@ export function useEditProduct() {
         else
           fd.append("sizeChart", JSON.stringify(null));
       } else {
-        fd.append("sizes",     JSON.stringify([]));
+        fd.append("sizes", JSON.stringify([]));
         fd.append("sizeChart", JSON.stringify(null));
       }
 
@@ -467,7 +475,11 @@ export function useEditProduct() {
       } else {
         fd.append("allowedAddons", JSON.stringify(null));
       }
-
+      if (videoType && videoUrl.trim()) {
+        fd.append("video", JSON.stringify({ type: videoType, url: videoUrl.trim() }));
+      } else {
+        fd.append("video", JSON.stringify(null)); // clears it on save
+      }
       fd.append("imageMode", imageMode);
       if (newFiles) {
         for (let i = 0; i < newFiles.length; i++) fd.append("images", newFiles[i]);
@@ -488,13 +500,13 @@ export function useEditProduct() {
     hasDiscount, discountValue, discountType, discountStart, discountEnd,
     stockManaged, hasSize, sizeStockRows, stockQty, name, isActive,
     description, bullets, sizes, useCustomSizeChart, sizeChart,
-    allowedAddonsJson, imageMode, newFiles,
+    allowedAddonsJson, imageMode, newFiles, videoType, videoUrl
   ]);
 
   /* ─────────────────────── derived ─────────────────────── */
 
-  const totalSizedStock  = sizeStockRows.reduce((sum, r) => sum + (parseInt(r.qty) || 0), 0);
-  const hasCostData      = !!(costPrice || additionalCosts.length > 0);
+  const totalSizedStock = sizeStockRows.reduce((sum, r) => sum + (parseInt(r.qty) || 0), 0);
+  const hasCostData = !!(costPrice || additionalCosts.length > 0);
   const selectedCategory = categories.find((c) => c._id === categoryId);
   const savedPricing: Partial<ProductData["pricing"]> = product?.pricing ?? {};
 
@@ -561,6 +573,8 @@ export function useEditProduct() {
 
     /* actions */
     handlePatch, handleDelete,
+    videoType, setVideoType,
+    videoUrl, setVideoUrl,
   };
 }
 

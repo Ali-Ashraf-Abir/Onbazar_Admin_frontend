@@ -15,13 +15,13 @@ export const PRESET_SIZES = [
 ];
 
 export const COMMON_COST_KEYS: { key: string; label: string; placeholder: string }[] = [
-  { key: "packaging",         label: "Packaging",          placeholder: "e.g. 30"  },
-  { key: "shipping",          label: "Shipping",           placeholder: "e.g. 60"  },
-  { key: "transactionFee",    label: "Transaction Fee",    placeholder: "e.g. 20"  },
-  { key: "adsCost",           label: "Ads Cost",           placeholder: "e.g. 50"  },
+  { key: "packaging", label: "Packaging", placeholder: "e.g. 30" },
+  { key: "shipping", label: "Shipping", placeholder: "e.g. 60" },
+  { key: "transactionFee", label: "Transaction Fee", placeholder: "e.g. 20" },
+  { key: "adsCost", label: "Ads Cost", placeholder: "e.g. 50" },
   { key: "manufacturingCost", label: "Manufacturing Cost", placeholder: "e.g. 200" },
-  { key: "customDutyCost",    label: "Custom Duty",        placeholder: "e.g. 40"  },
-  { key: "storageCost",       label: "Storage Cost",       placeholder: "e.g. 15"  },
+  { key: "customDutyCost", label: "Custom Duty", placeholder: "e.g. 40" },
+  { key: "storageCost", label: "Storage Cost", placeholder: "e.g. 15" },
 ];
 
 export interface Category {
@@ -65,59 +65,62 @@ function uid() {
 
 export function useCreateProduct() {
   /* ── basic ── */
-  const [name,          setName]          = useState("");
-  const [isActive,      setIsActive]      = useState(true);
+  const [name, setName] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [isBestProduct, setIsBestProduct] = useState(false);
-  const [description,   setDescription]   = useState("");
-  const [bullets,       setBullets]       = useState<string[]>(["320 GSM", "Box Fit", "100% Cotton"]);
+  const [description, setDescription] = useState("");
+  const [bullets, setBullets] = useState<string[]>(["320 GSM", "Box Fit", "100% Cotton"]);
 
   /* ── category ── */
-  const [categories,        setCategories]        = useState<Category[]>([]);
-  const [categoryId,        setCategoryId]        = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryId, setCategoryId] = useState("");
   const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   /* ── pricing ── */
-  const [sellingPrice,    setSellingPrice]    = useState("");
-  const [costPrice,       setCostPrice]       = useState("");
-  const [currency,        setCurrency]        = useState("BDT");
+  const [sellingPrice, setSellingPrice] = useState("");
+  const [costPrice, setCostPrice] = useState("");
+  const [currency, setCurrency] = useState("BDT");
   const [additionalCosts, setAdditionalCosts] = useState<CostEntry[]>([]);
   const [showCostSection, setShowCostSection] = useState(false);
 
   /* ── discount ── */
-  const [hasDiscount,   setHasDiscount]   = useState(false);
-  const [discountType,  setDiscountType]  = useState<"percentage" | "fixed">("percentage");
+  const [hasDiscount, setHasDiscount] = useState(false);
+  const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [discountValue, setDiscountValue] = useState("");
   const [discountStart, setDiscountStart] = useState("");
-  const [discountEnd,   setDiscountEnd]   = useState("");
+  const [discountEnd, setDiscountEnd] = useState("");
 
   /* ── sizes ── */
-  const [hasSize,         setHasSize]         = useState(true);
-  const [sizes,           setSizes]           = useState<string[]>(["M", "L", "XL", "2XL"]);
-  const [sizeDropOpen,    setSizeDropOpen]    = useState(false);
+  const [hasSize, setHasSize] = useState(true);
+  const [sizes, setSizes] = useState<string[]>(["M", "L", "XL", "2XL"]);
+  const [sizeDropOpen, setSizeDropOpen] = useState(false);
   const [customSizeInput, setCustomSizeInput] = useState("");
-  const sizeDropRef    = useRef<HTMLDivElement>(null);
+  const sizeDropRef = useRef<HTMLDivElement>(null);
   const sizeTriggerRef = useRef<HTMLButtonElement>(null);
 
   /* ── stock ── */
-  const [stockManaged,  setStockManaged]  = useState(false);
-  const [stockQty,      setStockQty]      = useState("");
+  const [stockManaged, setStockManaged] = useState(false);
+  const [stockQty, setStockQty] = useState("");
   const [sizeStockRows, setSizeStockRows] = useState<SizeStockEntry[]>([]);
 
   /* ── images ── */
-  const [images,   setImages]   = useState<ImageEntry[]>([]);
+  const [images, setImages] = useState<ImageEntry[]>([]);
   const [dragOver, setDragOver] = useState(false);
 
   /* ── advanced ── */
-  const [showAdvanced,       setShowAdvanced]       = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [useCustomSizeChart, setUseCustomSizeChart] = useState(false);
-  const [sizeChart,          setSizeChart]          = useState<SizeChart>({ unit: "inches", columns: [], rows: [] });
-  const [allowedAddonsJson,  setAllowedAddonsJson]  = useState("");
+  const [sizeChart, setSizeChart] = useState<SizeChart>({ unit: "inches", columns: [], rows: [] });
+  const [allowedAddonsJson, setAllowedAddonsJson] = useState("");
 
   /* ── ui ── */
-  const [loading,     setLoading]     = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastCreated, setLastCreated] = useState<LastCreated | null>(null);
 
+  // ── video ── (add with other state declarations)
+  const [videoType, setVideoType] = useState<"youtube" | "facebook" | "">("");
+  const [videoUrl, setVideoUrl] = useState("");
   /* ─────────────────────── effects ─────────────────────── */
 
   useEffect(() => {
@@ -179,7 +182,7 @@ export function useCreateProduct() {
 
   /* ─────────────────────── bullet helpers ─────────────────────── */
 
-  const addBullet    = useCallback(() => setBullets((p) => [...p, ""]), []);
+  const addBullet = useCallback(() => setBullets((p) => [...p, ""]), []);
   const updateBullet = useCallback((i: number, v: string) => {
     setBullets((p) => p.map((b, j) => (j === i ? v : b)));
   }, []);
@@ -293,17 +296,18 @@ export function useCreateProduct() {
     setUseCustomSizeChart(false);
     setSizeChart({ unit: "inches", columns: [], rows: [] });
     setAllowedAddonsJson(""); setShowAdvanced(false);
+    setVideoType(""); setVideoUrl("");
   }, []);
 
   /* ─────────────────────── submit ─────────────────────── */
 
   const handleCreate = useCallback(async () => {
-    if (!name.trim())        return alert("Product name is required");
+    if (!name.trim()) return alert("Product name is required");
     if (!description.trim()) return alert("Description is required");
-    if (!categoryId)         return alert("Please select a category");
+    if (!categoryId) return alert("Please select a category");
     if (!sellingPrice || isNaN(Number(sellingPrice)) || Number(sellingPrice) < 0)
       return alert("Enter a valid selling price");
-    if (images.length < 1)  return alert("Please add at least 1 image");
+    if (images.length < 1) return alert("Please add at least 1 image");
 
     const pricingObj: Record<string, unknown> = {
       sellingPrice: Number(sellingPrice),
@@ -325,7 +329,7 @@ export function useCreateProduct() {
     if (hasDiscount && discountValue && !isNaN(Number(discountValue))) {
       discountObj = { type: discountType, value: Number(discountValue) };
       if (discountStart) discountObj.startDate = discountStart;
-      if (discountEnd)   discountObj.endDate   = discountEnd;
+      if (discountEnd) discountObj.endDate = discountEnd;
     }
 
     const stockObj: Record<string, unknown> = { managed: stockManaged };
@@ -345,14 +349,14 @@ export function useCreateProduct() {
     setLoading(true);
     try {
       const fd = new FormData();
-      fd.append("name",          name.trim());
-      fd.append("category",      categoryId);
-      fd.append("pricing",       JSON.stringify(pricingObj));
+      fd.append("name", name.trim());
+      fd.append("category", categoryId);
+      fd.append("pricing", JSON.stringify(pricingObj));
       if (discountObj) fd.append("discount", JSON.stringify(discountObj));
-      fd.append("isActive",      String(isActive));
+      fd.append("isActive", String(isActive));
       fd.append("isBestProduct", String(isBestProduct));
-      fd.append("hasSize",       String(hasSize));
-      fd.append("details",       JSON.stringify({
+      fd.append("hasSize", String(hasSize));
+      fd.append("details", JSON.stringify({
         description: description.trim(),
         bullets: bullets.map((b) => b.trim()).filter(Boolean),
       }));
@@ -367,15 +371,17 @@ export function useCreateProduct() {
         catch { alert("Invalid allowedAddons JSON"); setLoading(false); return; }
       }
       images.forEach((img) => fd.append("images", img.file));
-
+      if (videoType && videoUrl.trim()) {
+        fd.append("video", JSON.stringify({ type: videoType, url: videoUrl.trim() }));
+      }
       const result = await api.upload<CreateProductResponse>("/admin/products", fd);
       const p = result.data;
 
       setLastCreated({
-        id:           p._id,
-        name:         p.name,
+        id: p._id,
+        name: p.name,
         sellingPrice: p.pricing.sellingPrice,
-        image:        p.images?.[0] || "",
+        image: p.images?.[0] || "",
       });
       resetForm();
       setShowSuccess(true);
@@ -391,13 +397,13 @@ export function useCreateProduct() {
     additionalCosts, hasDiscount, discountValue, discountType, discountStart,
     discountEnd, stockManaged, hasSize, sizeStockRows, stockQty, isActive,
     isBestProduct, bullets, sizes, useCustomSizeChart, sizeChart,
-    allowedAddonsJson, images, resetForm,
+    allowedAddonsJson, images, resetForm, videoType, videoUrl
   ]);
 
   /* ─────────────────────── derived ─────────────────────── */
 
-  const totalSizedStock  = sizeStockRows.reduce((sum, r) => sum + (parseInt(r.qty) || 0), 0);
-  const hasCostData      = !!(costPrice || additionalCosts.length > 0);
+  const totalSizedStock = sizeStockRows.reduce((sum, r) => sum + (parseInt(r.qty) || 0), 0);
+  const hasCostData = !!(costPrice || additionalCosts.length > 0);
   const selectedCategory = categories.find((c) => c._id === categoryId);
 
   /* ─────────────────────── return ─────────────────────── */
@@ -458,6 +464,8 @@ export function useCreateProduct() {
     /* ui */
     loading, showSuccess, lastCreated,
     handleCreate,
+    videoType, setVideoType,
+    videoUrl, setVideoUrl,
   };
 }
 

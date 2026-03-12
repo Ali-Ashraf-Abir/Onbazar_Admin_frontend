@@ -6,6 +6,7 @@ import { ImagesCard, UploadCard, PricingCard, SizeChartCard } from "../../../../
 import {
   BasicInfoCard, DescriptionCard, KeyFeaturesCard,
   SizingCard, StockCard, AdvancedCard,
+  VideoCard,
 } from "../../../../components/edit-products/EditInfoCards";
 
 export default function ProductDetailsPage() {
@@ -49,11 +50,11 @@ export default function ProductDetailsPage() {
             className="text-sm font-semibold px-3 py-1.5 rounded-[var(--bw-radius-md)] border cursor-pointer transition-all"
             style={{ background: "transparent", borderColor: "var(--bw-border)", color: "var(--bw-red)" }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background  = "var(--bw-red-bg)";
+              e.currentTarget.style.background = "var(--bw-red-bg)";
               e.currentTarget.style.borderColor = "var(--bw-red)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background  = "transparent";
+              e.currentTarget.style.background = "transparent";
               e.currentTarget.style.borderColor = "var(--bw-border)";
             }}
           >
@@ -226,7 +227,12 @@ export default function ProductDetailsPage() {
               updateBullet={store.updateBullet}
               removeBullet={store.removeBullet}
             />
-
+            <VideoCard
+              videoType={store.videoType}
+              setVideoType={store.setVideoType}
+              videoUrl={store.videoUrl}
+              setVideoUrl={store.setVideoUrl}
+            />
             <SizingCard
               hasSize={store.hasSize}
               setHasSize={store.setHasSize}
