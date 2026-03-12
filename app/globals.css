@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
 
 @tailwind utilities;
@@ -54,8 +55,8 @@
   --bw-radius-pill: 9999px;
 
   /* ── Typography ── */
-  --bw-font-display: 'DM Serif Display', 'Georgia', serif;
-  --bw-font-body: 'DM Sans', 'Helvetica Neue', sans-serif;
+  --bw-font-display: 'Inter', sans-serif;
+  --bw-font-body: 'Inter', 'Helvetica Neue', sans-serif;
   --bw-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
