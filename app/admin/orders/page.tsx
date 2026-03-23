@@ -1,484 +1,639 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import api, { ApiError } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL as string;
+/* ─── Config ───────────────────────────────────────────────────────── */
 
-/* ─────────────────────── constants ─────────────────────── */
+type StatusKey = "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled" | "refunded";
 
-const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  pending: { bg: "rgba(245,158,11,0.12)", color: "#d97706", label: "Pending" },
-  confirmed: { bg: "rgba(59,130,246,0.12)", color: "#2563eb", label: "Confirmed" },
-  processing: { bg: "rgba(99,102,241,0.12)", color: "#4f46e5", label: "Processing" },
-  shipped: { bg: "rgba(139,92,246,0.12)", color: "#7c3aed", label: "Shipped" },
-  delivered: { bg: "rgba(34,197,94,0.12)", color: "#16a34a", label: "Delivered" },
-  cancelled: { bg: "rgba(239,68,68,0.12)", color: "#dc2626", label: "Cancelled" },
-  refunded: { bg: "rgba(249,115,22,0.12)", color: "#ea580c", label: "Refunded" },
+const STATUS: Record<StatusKey, { bg: string; color: string; dot: string; label: string }> = {
+  pending: { bg: "#fef9c3", color: "#92400e", dot: "#f59e0b", label: "Pending" },
+  confirmed: { bg: "#dbeafe", color: "#1e40af", dot: "#3b82f6", label: "Confirmed" },
+  processing: { bg: "#ede9fe", color: "#5b21b6", dot: "#8b5cf6", label: "Processing" },
+  shipped: { bg: "#f0fdf4", color: "#166534", dot: "#22c55e", label: "Shipped" },
+  delivered: { bg: "#d1fae5", color: "#065f46", dot: "#10b981", label: "Delivered" },
+  cancelled: { bg: "#fee2e2", color: "#991b1b", dot: "#ef4444", label: "Cancelled" },
+  refunded: { bg: "#ffedd5", color: "#9a3412", dot: "#f97316", label: "Refunded" },
 };
 
-const PAYMENT_STYLES: Record<string, { bg: string; color: string }> = {
-  COD: { bg: "rgba(100,116,139,0.12)", color: "#475569" },
-  Bkash: { bg: "rgba(236,72,153,0.12)", color: "#db2777" },
-};
+const ALL_STATUSES: StatusKey[] = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"];
 
-function fmt(n: number, currency = "BDT") {
-  return `${currency === "BDT" ? "৳" : currency}${n.toFixed(2)}`;
+/* ─── Types ─────────────────────────────────────────────────────────── */
+
+interface OrderItem { snapshot: { name: string }; size?: string; quantity: number; }
+interface Order {
+  _id: string;
+  orderNumber: string;
+  status: StatusKey;
+  createdAt: string;
+  delivery: { fullName: string; phone: string; thana?: string; zilla?: string; address?: string };
+  items: OrderItem[];
+  addons?: { snapshot: { name: string }; quantity: number }[];
+  pricing?: { grandTotal: number; deliveryCharge: number };
+  payment?: { method: string; cod?: { confirmed: boolean } };
+  adminNote?: string;
 }
 
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "Just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+/* ─── Helpers ───────────────────────────────────────────────────────── */
+
+function todayDhaka(): string {
+  // Get today's date in Asia/Dhaka timezone as YYYY-MM-DD
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Dhaka" });
 }
 
-/* ═══════════════════════════════════════════════════════ */
+function fmtDateLabel(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  const today = todayDhaka();
+  const yesterday = new Date(new Date().setDate(new Date().getDate() - 1))
+    .toLocaleDateString("en-CA", { timeZone: "Asia/Dhaka" });
+  if (iso === today) return "Today";
+  if (iso === yesterday) return "Yesterday";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
 
-export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [meta, setMeta] = useState<any>(null);
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka",
+  });
+}
+
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString("en-CA");
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+═══════════════════════════════════════════════════════════════════ */
+
+export default function AdminOrdersByDate() {
+  const [date, setDate] = useState(todayDhaka);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [meta, setMeta] = useState<{ total: number; totalPages: number; page: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
 
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [method, setMethod] = useState("");
-  const [sort, setSort] = useState("newest");
+  // ── Selection state ──────────────────────────────────────────────
+  // selectedIds: which order cards are checked
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const [applied, setApplied] = useState({ q: "", status: "", method: "", sort: "newest", page: 1 });
+  // Bulk action controls
+  const [filterFrom, setFilterFrom] = useState<StatusKey | "">("");  // "" = all non-terminal
+  const [targetStatus, setTargetStatus] = useState<StatusKey | "">("");
 
-  /* ─────────────────────── fetch ─────────────────────── */
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "ok" | "warn" } | null>(null);
 
-  async function load(a: typeof applied) {
+  /* ── Load orders ─────────────────────────────────────────────── */
+  const load = useCallback(async (d: string, p: number) => {
     setLoading(true);
+    setToast(null);
     try {
-      const params = new URLSearchParams();
-      params.set("page", String(a.page));
-      params.set("limit", "15");
-      if (a.q) params.set("q", a.q);
-      if (a.status) params.set("status", a.status);
-      if (a.method) params.set("method", a.method);
-      if (a.sort) params.set("sort", a.sort);
-      const res = await fetch(`${API}/admin/orders?${params}`);
-      const data = await res.json();
+      const params = new URLSearchParams({ date: d, page: String(p), limit: "50", sort: "oldest" });
+      const data = await api.get<{ data: Order[]; meta: typeof meta }>(`/admin/orders?${params}`);
       setOrders(data.data || []);
       setMeta(data.meta || null);
-    } finally { setLoading(false); }
-  }
+      setSelectedIds(new Set());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { load(applied); }, [applied]);
+  useEffect(() => { load(date, page); }, [date, page, load]);
 
-  function apply() { setApplied({ q, status, method, sort, page: 1 }); setPage(1); }
-  function reset() {
-    setQ(""); setStatus(""); setMethod(""); setSort("newest"); setPage(1);
-    setApplied({ q: "", status: "", method: "", sort: "newest", page: 1 });
-  }
-  function goPage(p: number) { setPage(p); setApplied(a => ({ ...a, page: p })); }
+  /* ── Selection helpers ────────────────────────────────────────── */
+  const toggleCard = (id: string) => {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
 
-  const hasPending = q !== applied.q || status !== applied.status || method !== applied.method || sort !== applied.sort;
-  const hasFilters = !!(applied.q || applied.status || applied.method || applied.sort !== "newest");
+  // Select all = every order, no restrictions
+  const allSelected = orders.length > 0 && orders.every(o => selectedIds.has(o._id));
 
-  /* ─────────────────────── shared input style ─────────────────────── */
-  const selectCls = [
-    "h-9 px-3 rounded-[var(--bw-radius-md)] text-[13px] font-medium",
-    "bg-[var(--bw-input-bg)] text-[var(--bw-ink)]",
-    "border border-[var(--bw-border)] outline-none",
-    "transition-colors duration-150 cursor-pointer",
-    "focus:border-[var(--bw-border-strong)] focus:bg-[var(--bw-input-focus)]",
-    "hover:border-[var(--bw-border-strong)]",
-  ].join(" ");
+  const selectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(orders.map(o => o._id)));
+    }
+  };
 
-  /* ═══════════════════════════════════════════════════════ */
+  // wouldAffect: all selected, optionally filtered by current status
+  const wouldAffect = [...selectedIds].filter(id => {
+    const o = orders.find(x => x._id === id);
+    if (!o) return false;
+    if (filterFrom) return o.status === filterFrom;
+    return true;
+  });
+
+  /* ── Bulk update ──────────────────────────────────────────────── */
+  const doBulk = async () => {
+    if (!targetStatus || wouldAffect.length === 0) return;
+    setBulkLoading(true);
+    setToast(null);
+    try {
+      const body: Record<string, unknown> = {
+        orderIds: wouldAffect,
+        newStatus: targetStatus,
+      };
+      if (filterFrom) body.fromStatus = filterFrom;
+
+      const data = await api.post<{ updated: number; total: number; skipped: number }>(
+        "/admin/orders/bulk-status",
+        body
+      );
+      const skipped = selectedIds.size - data.updated;
+      setToast({
+        msg: data.updated > 0
+          ? `✓ ${data.updated} order${data.updated !== 1 ? "s" : ""} updated to "${STATUS[targetStatus]?.label}"${skipped > 0 ? ` · ${skipped} skipped` : ""}`
+          : `No orders matched — ${skipped} skipped`,
+        type: data.updated > 0 ? "ok" : "warn",
+      });
+      await load(date, page);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Request failed";
+      setToast({ msg, type: "warn" });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  /* ── Status summary counts ────────────────────────────────────── */
+  const counts = orders.reduce<Record<string, number>>((acc, o) => {
+    acc[o.status] = (acc[o.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  /* ─────────────────────────────────────────────────────────────── */
 
   return (
-    <div
-      className="min-h-screen font-sans"
-      style={{
-        background: "var(--bw-bg)",
-        color: "var(--bw-ink)",
-        fontFamily: "var(--bw-font-body)",
-      }}
-    >
-      {/* shimmer keyframe */}
+    <div style={{ minHeight: "100vh", background: "#f1f3f5", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`
-        @keyframes bw-shimmer {
-          0%   { background-position: 200% 0 }
-          100% { background-position: -200% 0 }
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* ── Cards ── */
+        .ocard {
+          background: white;
+          border-radius: 14px;
+          border: 2px solid #e8eaed;
+          overflow: hidden;
+          cursor: pointer;
+          transition: border-color .15s, box-shadow .15s, transform .12s;
+          user-select: none;
+          display: flex;
+          flex-direction: column;
         }
-        @keyframes bw-pulse {
-          0%,100% { opacity:1 }
-          50%      { opacity:.3 }
+        .ocard:hover { border-color: #c5c9d0; box-shadow: 0 4px 16px rgba(0,0,0,.07); transform: translateY(-1px); }
+        .ocard.checked { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+        .ocard.terminal { opacity: .72; cursor: default; }
+        .ocard.terminal:hover { transform: none; box-shadow: none; border-color: #e8eaed; }
+
+        .card-header {
+          padding: 14px 16px 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
         }
+        .card-body { padding: 0 16px 14px; flex: 1; }
+        .card-footer {
+          padding: 10px 16px;
+          border-top: 1px solid #f0f2f5;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        /* ── Status badge ── */
+        .sbadge {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 4px 10px; border-radius: 20px;
+          font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+        }
+        .sdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+        /* ── Product chips ── */
+        .chip {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 3px 9px; border-radius: 6px;
+          background: #f8f9fa; border: 1px solid #e9ecef;
+          font-size: 12px; color: #374151; font-weight: 500;
+          margin: 3px 3px 0 0;
+        }
+        .chip-qty {
+          background: #e5e7eb; color: #6b7280; border-radius: 4px;
+          padding: 1px 5px; font-family: 'DM Mono', monospace; font-size: 10px;
+        }
+
+        /* ── Checkbox ── */
+        .cb {
+          width: 20px; height: 20px; flex-shrink: 0;
+          border: 2px solid #d1d5db; border-radius: 6px;
+          display: flex; align-items: center; justify-content: center;
+          transition: border-color .1s, background .1s;
+          font-size: 11px; font-weight: 800; color: white;
+        }
+        .cb.on { border-color: #4f46e5; background: #4f46e5; }
+
+        /* ── Controls ── */
+        select.ctrl, input.ctrl {
+          height: 38px; padding: 0 12px;
+          border: 1.5px solid #e2e5ea; border-radius: 9px;
+          font-size: 13px; font-family: 'DM Sans', sans-serif;
+          color: #1f2937; background: white; outline: none; cursor: pointer;
+        }
+        select.ctrl:focus, input.ctrl:focus { border-color: #4f46e5; }
+        select.ctrl:disabled { opacity: .5; cursor: not-allowed; }
+
+        .btn {
+          height: 38px; padding: 0 18px; border-radius: 9px;
+          font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 700;
+          border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+          transition: opacity .1s, transform .1s;
+          white-space: nowrap;
+        }
+        .btn:active { transform: scale(.97); }
+        .btn:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-dark { background: #1f2937; color: white; }
+        .btn-indigo { background: #4f46e5; color: white; }
+        .btn-outline { background: white; color: #6b7280; border: 1.5px solid #e2e5ea; }
+
+        /* ── Date nav ── */
+        .dnav {
+          width: 36px; height: 36px; border-radius: 9px;
+          border: 1.5px solid #e2e5ea; background: white;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 18px; color: #374151; cursor: pointer;
+          transition: border-color .1s, background .1s;
+        }
+        .dnav:hover { border-color: #4f46e5; background: #f5f3ff; color: #4f46e5; }
+
+        /* ── Toast ── */
+        .toast {
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 8px 14px; border-radius: 8px;
+          font-size: 13px; font-weight: 600;
+          animation: pop .2s ease;
+        }
+        .toast-ok   { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; }
+        .toast-warn { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+        @keyframes pop { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ── Skeleton ── */
+        .skel {
+          background: linear-gradient(90deg, #f3f4f6 25%, #e9ecef 50%, #f3f4f6 75%);
+          background-size: 200% 100%; animation: sh 1.3s infinite; border-radius: 6px;
+        }
+        @keyframes sh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        /* ── Grid ── */
+        .cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 14px;
+        }
+
+        @media (max-width: 520px) {
+          .cards-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ── Print styles ── */
+        @media print {
+          @page { size: A4; margin: 14mm 12mm; }
+          body { background: white !important; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          .cards-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 10px !important;
+          }
+          .ocard {
+            border: 1.5px solid #d1d5db !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            transform: none !important;
+            cursor: default !important;
+          }
+          .ocard.checked { border-color: #d1d5db !important; box-shadow: none !important; }
+          .cb { display: none !important; }
+          .card-footer a { display: none !important; }
+        }
+        .print-only { display: none; }
       `}</style>
 
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "26px 16px" }}>
 
-        {/* ── Title row ── */}
-        <div className="flex items-end justify-between mb-6">
+        {/* ══ Page header ════════════════════════════════════════════ */}
+        <div style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div>
-            <h1
-              className="text-[28px] font-bold tracking-tight leading-none"
-              style={{ fontFamily: "var(--bw-font-display)", color: "var(--bw-ink)" }}
-            >
-              Orders
-            </h1>
-            {meta && (
-              <p className="mt-1 text-[13px]" style={{ color: "var(--bw-muted)" }}>
-                {meta.total} order{meta.total !== 1 ? "s" : ""}
-                {meta.totalPages > 1 && ` · Page ${meta.page} of ${meta.totalPages}`}
-              </p>
-            )}
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", letterSpacing: "-.02em" }}>Daily Orders</h1>
+            <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 3 }}>View and manage orders by date</p>
           </div>
-          <a
-            href="/admin/orders/create"
-            className="inline-flex items-center gap-2 px-4 h-9 rounded-[var(--bw-radius-md)] text-[13px] font-semibold transition-opacity hover:opacity-80"
-            style={{ background: "var(--bw-ink)", color: "var(--bw-bg)" }}
-          >
-            + Test Order
-          </a>
-        </div>
-
-        {/* ── Filters ── */}
-        <div
-          className="flex flex-wrap gap-2.5 items-center p-4 mb-5 rounded-[var(--bw-radius-xl)]"
-          style={{
-            background: "var(--bw-surface)",
-            border: "1px solid var(--bw-border)",
-            boxShadow: "var(--bw-shadow-sm)",
-          }}
-        >
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <span
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] pointer-events-none select-none"
-              style={{ color: "var(--bw-ghost)" }}
-            >
-              🔍
-            </span>
-            <input
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && apply()}
-              placeholder="Search by order #, name, phone, email…"
-              className="w-full h-9 pl-9 pr-3 rounded-[var(--bw-radius-md)] text-[13px] outline-none transition-all duration-150"
-              style={{
-                background: "var(--bw-input-bg)",
-                color: "var(--bw-ink)",
-                border: "1.5px solid transparent",
-                fontFamily: "var(--bw-font-body)",
-              }}
-              onFocus={e => { e.currentTarget.style.borderColor = "var(--bw-border-strong)"; e.currentTarget.style.background = "var(--bw-input-focus)"; }}
-              onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "var(--bw-input-bg)"; }}
-            />
-          </div>
-
-          {/* Selects */}
-          <select className={selectCls} value={status} onChange={e => setStatus(e.target.value)}>
-            <option value="">All statuses</option>
-            {Object.entries(STATUS_STYLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-
-          <select className={selectCls} value={method} onChange={e => setMethod(e.target.value)}>
-            <option value="">All payments</option>
-            <option value="COD">COD</option>
-            <option value="Bkash">Bkash</option>
-          </select>
-
-          <select className={selectCls} value={sort} onChange={e => setSort(e.target.value)}>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="total_desc">Highest total</option>
-            <option value="total_asc">Lowest total</option>
-          </select>
-
-          {/* Actions */}
-          <div className="flex gap-2 ml-auto">
-            {hasFilters && (
-              <button
-                onClick={reset}
-                className="px-3.5 h-9 rounded-[var(--bw-radius-md)] text-[12px] font-semibold transition-colors duration-150"
-                style={{
-                  background: "transparent",
-                  border: "1.5px solid var(--bw-border)",
-                  color: "var(--bw-muted)",
-                  fontFamily: "var(--bw-font-body)",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--bw-red)"; e.currentTarget.style.color = "var(--bw-red)"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.color = "var(--bw-muted)"; }}
-              >
-                ✕ Reset
-              </button>
-            )}
+          {!loading && orders.length > 0 && (
             <button
-              onClick={apply}
-              className="flex items-center gap-1.5 px-4 h-9 rounded-[var(--bw-radius-md)] text-[13px] font-bold transition-all duration-150"
-              style={{
-                background: hasPending ? "var(--bw-amber)" : "var(--bw-ink)",
-                color: hasPending ? "#0a0a0a" : "var(--bw-bg)",
-                border: "none",
-                fontFamily: "var(--bw-font-body)",
-                cursor: "pointer",
-              }}
+              className="btn no-print"
+              onClick={() => window.print()}
+              style={{ background: "white", color: "#374151", border: "1.5px solid #e2e5ea", height: 38, fontSize: 13 }}
             >
-              {hasPending && (
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{
-                    background: "var(--bw-ink)",
-                    animation: "bw-pulse 1.2s infinite",
-                    display: "inline-block",
-                  }}
-                />
-              )}
-              {hasPending ? "Apply" : "Search"}
+              🖨 Print / Save PDF
             </button>
-          </div>
-        </div>
-
-        {/* ── Table ── */}
-        <div
-          className="rounded-[var(--bw-radius-xl)] overflow-hidden"
-          style={{
-            background: "var(--bw-surface)",
-            border: "1px solid var(--bw-border)",
-            boxShadow: "var(--bw-shadow-sm)",
-          }}
-        >
-          <table className="w-full border-collapse">
-            <thead>
-              <tr style={{ background: "var(--bw-surface-alt)", borderBottom: "1px solid var(--bw-border)" }}>
-                {["Order", "Customer", "Items", "Total", "Payment", "Status", "Location"].map(h => (
-                  <th
-                    key={h}
-                    className="text-left px-4 py-3 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap"
-                    style={{ color: "var(--bw-ghost)", fontFamily: "var(--bw-font-body)" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i}>
-                    {[100, 140, 180, 80, 70, 80, 100].map((w, j) => (
-                      <td key={j} className="px-4 py-4">
-                        <div
-                          style={{
-                            height: 14,
-                            width: w,
-                            borderRadius: 4,
-                            background: `linear-gradient(90deg, var(--bw-surface-alt) 25%, var(--bw-border) 50%, var(--bw-surface-alt) 75%)`,
-                            backgroundSize: "200% 100%",
-                            animation: `bw-shimmer 1.4s ${i * 0.05}s infinite`,
-                          }}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : orders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center">
-                    <div className="text-4xl opacity-30 mb-3">📋</div>
-                    <p className="text-[15px] font-semibold" style={{ color: "var(--bw-ink)" }}>No orders found</p>
-                    <p className="text-[13px] mt-1" style={{ color: "var(--bw-ghost)" }}>Try adjusting your filters</p>
-                  </td>
-                </tr>
-              ) : (
-                orders.map((o: any) => {
-                  const st = STATUS_STYLES[o.status] || STATUS_STYLES.pending;
-                  const pm = PAYMENT_STYLES[o.payment?.method] || PAYMENT_STYLES.COD;
-                  const mgn = o.analytics?.estimatedProfit;
-                  const cur = o.pricing?.currency || "BDT";
-                  const delivery = o.pricing?.deliveryCharge || null;
-                  const partialRefund = o.refund?.refundType;
-                  const promo = o.promo || null;
-                  return (
-                    <tr
-                      key={o._id}
-                      style={{ borderBottom: "1px solid var(--bw-divider)" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "var(--bw-bg-alt)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                    >
-                      {/* Order # */}
-                      <td className="px-4 py-3">
-                        <a href={`/admin/orders/${o._id}`} className="no-underline">
-                          <div
-                            className="text-[12px] font-bold tracking-wide"
-                            style={{ fontFamily: "var(--bw-font-mono)", color: "var(--bw-ink)" }}
-                          >
-                            {o.orderNumber}
-                          </div>
-                          <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-ghost)" }}>
-                            {timeAgo(o.createdAt)}
-                          </div>
-                        </a>
-                      </td>
-
-                      {/* Customer */}
-                      <td className="px-4 py-3">
-                        <div className="text-[13px] font-semibold" style={{ color: "var(--bw-ink)" }}>
-                          {o.delivery?.fullName}
-                        </div>
-                        <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-muted)" }}>{o.delivery?.phone}</div>
-                        <div className="text-[11px]" style={{ color: "var(--bw-muted)" }}>{o.delivery?.email}</div>
-                      </td>
-
-                      {/* Items */}
-                      <td className="px-4 py-3">
-                        <div className="text-[12px]" style={{ color: "var(--bw-muted)" }}>
-                          {o.items?.length ?? 0} product{o.items?.length !== 1 ? "s" : ""}
-                          {o.addons?.length > 0 && ` · ${o.addons.length} addon${o.addons.length !== 1 ? "s" : ""}`}
-                        </div>
-                      </td>
-
-                      {/* Total */}
-                      <td className="px-4 py-3">
-                        <div className="text-[14px] font-bold tabular-nums" style={{ color: "var(--bw-ink)" }}>
-                          {fmt(o.pricing?.subtotal ?? 0, cur)}
-                        </div>
-                        {mgn != null ? (
-                          <div
-                            className="text-[11px] font-semibold tabular-nums mt-0.5"
-                            style={{ color: mgn >= 0 ? "var(--bw-green)" : "var(--bw-red)" }}
-                          >
-                            {mgn >= 0 ? "+" : ""}{fmt(mgn, cur)} margin
-                          </div>
-
-                        ) : (
-                          <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-ghost)" }}>no cost data</div>
-                        )}
-                        {delivery != null ? (
-                          <div
-                            className="text-[11px] font-semibold tabular-nums mt-0.5"
-                            style={{ color: delivery >= 0 ? "var(--bw-green)" : "var(--bw-red)" }}
-                          >
-                            {delivery >= 0 ? "+" : ""}{delivery} delivery charge
-                          </div>
-
-                        ) : (
-                          <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-ghost)" }}>no delivery charge Data</div>
-                        )}
-                        {
-                          promo != null ? (
-                            <div
-                              className="text-[11px] font-semibold tabular-nums mt-0.5"
-                              style={{ color: promo >= 0 ? "var(--bw-green)" : "var(--bw-red)" }}
-                            >
-                              {promo >= 0 ? "+" : ""}{fmt(promo.discountAmount, cur)} promo discount
-                            </div>
-
-                          ) : (
-                            ''
-                          )
-                        }
-                      </td>
-
-                      {/* Payment */}
-                      <td className="px-4 py-3">
-                        <span
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide whitespace-nowrap"
-                          style={{ background: pm.bg, color: pm.color }}
-                        >
-                          {o.payment?.method}
-                        </span>
-                        {o.payment?.method === "COD" && o.payment?.cod?.confirmed && (
-                          <div className="text-[10px] mt-0.5 font-semibold" style={{ color: "var(--bw-green)" }}>
-                            ✓ Confirmed
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-4 py-3">
-                        {
-                          partialRefund == 'partial' ? (
-                            <div
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide whitespace-nowrap text-red-100 bg-red-400 rounded-lg">
-                              Partially Refunded : {o.refund?.refundedAmount ? fmt(o.refund.refundedAmount, cur) : "N/A"}
-                            </div>) : <span
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide whitespace-nowrap"
-                              style={{ background: st.bg, color: st.color }}
-                            >
-                            {st.label}
-                          </span>
-                        }
-                      </td>
-
-                      {/* Location */}
-                      <td className="px-4 py-3">
-                        <div className="text-[12px] font-medium" style={{ color: "var(--bw-muted)" }}>{o.delivery?.zilla}</div>
-                        <div className="text-[11px]" style={{ color: "var(--bw-ghost)" }}>{o.delivery?.thana}</div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-
-          {/* ── Pagination ── */}
-          {meta && meta.totalPages > 1 && (
-            <div
-              className="flex items-center justify-center gap-2 px-6 py-5"
-              style={{ borderTop: "1px solid var(--bw-border)" }}
-            >
-              <PagBtn disabled={page <= 1} onClick={() => goPage(page - 1)}>←</PagBtn>
-              {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
-                .filter(p => p === 1 || p === meta.totalPages || Math.abs(p - page) <= 1)
-                .reduce<(number | "...")[]>((acc, p, i, arr) => {
-                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
-                  acc.push(p);
-                  return acc;
-                }, [])
-                .map((p, i) =>
-                  p === "..." ? (
-                    <span key={`e-${i}`} className="text-[13px]" style={{ color: "var(--bw-ghost)" }}>…</span>
-                  ) : (
-                    <PagBtn key={p} active={p === page} onClick={() => goPage(p as number)}>
-                      {p}
-                    </PagBtn>
-                  )
-                )}
-              <PagBtn disabled={page >= meta.totalPages} onClick={() => goPage(page + 1)}>→</PagBtn>
-            </div>
           )}
         </div>
+
+        {/* Print header — only visible when printing */}
+        <div className="print-only" style={{ marginBottom: 16, paddingBottom: 10, borderBottom: "2px solid #111827" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#111827" }}>Orders — {fmtDateLabel(date)}</div>
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>{meta?.total ?? orders.length} orders · Printed {new Date().toLocaleString("en-BD")}</div>
+        </div>
+
+        {/* ══ Date picker bar ════════════════════════════════════════ */}
+        <div className="no-print" style={{ background: "white", border: "1.5px solid #e2e5ea", borderRadius: 14, padding: "13px 16px", display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          <button className="dnav" onClick={() => { setDate(d => shiftDate(d, -1)); setPage(1); }}>‹</button>
+
+          <input
+            type="date"
+            className="ctrl"
+            style={{ fontFamily: "'DM Mono', monospace", fontWeight: 500 }}
+            value={date}
+            onChange={e => { if (e.target.value) { setDate(e.target.value); setPage(1); } }}
+          />
+
+          <button className="dnav" onClick={() => { setDate(d => shiftDate(d, 1)); setPage(1); }}>›</button>
+
+          {date !== todayDhaka() && (
+            <button className="btn btn-outline" style={{ height: 36, fontSize: 12 }}
+              onClick={() => { setDate(todayDhaka()); setPage(1); }}>
+              Today
+            </button>
+          )}
+
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>
+              {fmtDateLabel(date)}
+            </span>
+            {meta && (
+              <span style={{ fontSize: 13, color: "#6b7280", background: "#f3f4f6", padding: "3px 10px", borderRadius: 20, fontWeight: 600 }}>
+                {meta.total} order{meta.total !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* ══ Status summary pills ═══════════════════════════════════ */}
+        {!loading && Object.keys(counts).length > 0 && (
+          <div className="no-print" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {ALL_STATUSES.filter(s => counts[s]).map(s => (
+              <span key={s} className="sbadge" style={{ background: STATUS[s].bg, color: STATUS[s].color }}>
+                <span className="sdot" style={{ background: STATUS[s].dot }} />
+                {STATUS[s].label} · {counts[s]}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* ══ Bulk action bar ════════════════════════════════════════ */}
+        {!loading && orders.length > 0 && (
+          <div className="no-print" style={{ background: "white", border: "1.5px solid #e2e5ea", borderRadius: 12, padding: "11px 16px", marginBottom: 18, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+
+            {/* Select all toggle */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={selectAll}>
+              <div className={`cb${allSelected ? " on" : ""}`}>{allSelected ? "✓" : ""}</div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", whiteSpace: "nowrap" }}>
+                {selectedIds.size === 0 ? "Select all" : `${selectedIds.size} selected`}
+              </span>
+            </div>
+
+            <div style={{ width: 1, height: 22, background: "#e5e7eb", flexShrink: 0 }} />
+
+            {/* Filter: only change orders currently at this status */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>From</span>
+              <select className="ctrl" value={filterFrom}
+                onChange={e => setFilterFrom(e.target.value as StatusKey | "")}
+                disabled={selectedIds.size === 0}>
+                <option value="">Any status</option>
+                {ALL_STATUSES.map(s => (
+                  <option key={s} value={s}>{STATUS[s].label}</option>
+                ))}
+              </select>
+            </div>
+
+            <span style={{ fontSize: 13, color: "#9ca3af" }}>→</span>
+
+            {/* Target status */}
+            <select className="ctrl" value={targetStatus}
+              onChange={e => setTargetStatus(e.target.value as StatusKey | "")}
+              disabled={selectedIds.size === 0}>
+              <option value="">Set status…</option>
+              {ALL_STATUSES.map(s => (
+                <option key={s} value={s}>{STATUS[s].label}</option>
+              ))}
+            </select>
+
+            {/* Affected count */}
+            {targetStatus && selectedIds.size > 0 && (
+              <span style={{ fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>
+                {wouldAffect.length} will change
+                {selectedIds.size - wouldAffect.length > 0 && ` · ${selectedIds.size - wouldAffect.length} skipped`}
+              </span>
+            )}
+
+            <button
+              className="btn btn-indigo"
+              style={{ marginLeft: "auto" }}
+              disabled={!targetStatus || wouldAffect.length === 0 || bulkLoading}
+              onClick={doBulk}
+            >
+              {bulkLoading ? "Updating…" : `Apply${wouldAffect.length > 0 ? ` (${wouldAffect.length})` : ""}`}
+            </button>
+
+            {toast && (
+              <span className={`toast toast-${toast.type}`}>{toast.msg}</span>
+            )}
+          </div>
+        )}
+
+        {/* ══ Cards grid ════════════════════════════════════════════ */}
+        {loading ? (
+          <div className="cards-grid">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} style={{ background: "white", borderRadius: 14, border: "2px solid #e8eaed", padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div className="skel" style={{ width: 110, height: 11 }} />
+                  <div className="skel" style={{ width: 70, height: 20, borderRadius: 20 }} />
+                </div>
+                <div className="skel" style={{ width: "75%", height: 18, marginBottom: 6 }} />
+                <div className="skel" style={{ width: "50%", height: 13, marginBottom: 14 }} />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div className="skel" style={{ width: 100, height: 26, borderRadius: 6 }} />
+                  <div className="skel" style={{ width: 80, height: 26, borderRadius: 6 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : orders.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <div style={{ fontSize: 52, opacity: .15, marginBottom: 14 }}>📦</div>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "#374151" }}>No orders on {fmtDateLabel(date)}</p>
+            <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 4 }}>Use the arrows to check another day</p>
+          </div>
+        ) : (
+          <div className="cards-grid">
+            {orders.map(o => (
+              <OrderCard
+                key={o._id}
+                order={o}
+                checked={selectedIds.has(o._id)}
+                onToggle={() => toggleCard(o._id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* ══ Pagination ════════════════════════════════════════════ */}
+        {meta && meta.totalPages > 1 && (
+          <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 28, alignItems: "center" }}>
+            <PagBtn disabled={page <= 1} onClick={() => setPage(p => p - 1)}>←</PagBtn>
+            {Array.from({ length: meta.totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === meta.totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
+                acc.push(p); return acc;
+              }, [])
+              .map((p, i) =>
+                p === "…"
+                  ? <span key={`e${i}`} style={{ color: "#9ca3af" }}>…</span>
+                  : <PagBtn key={p} active={p === page} onClick={() => setPage(p as number)}>{p}</PagBtn>
+              )}
+            <PagBtn disabled={page >= meta.totalPages} onClick={() => setPage(p => p + 1)}>→</PagBtn>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/* ─── Pagination button ─── */
-function PagBtn({
-  children, active, disabled, onClick,
-}: {
-  children: React.ReactNode;
-  active?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
+/* ═══════════════════════════════════════════════════════════════════
+   ORDER CARD
+═══════════════════════════════════════════════════════════════════ */
+
+function OrderCard({ order: o, checked, onToggle }: {
+  order: Order; checked: boolean; onToggle: () => void;
+}) {
+  const st = STATUS[o.status] || STATUS.pending;
+
+  return (
+    <div
+      className={`ocard${checked ? " checked" : ""}`}
+      onClick={onToggle}
+    >
+      {/* Header: order# + time + checkbox */}
+      <div className="card-header">
+        <div>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 500, color: "black", letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 3 }}>
+            {o.orderNumber}
+          </div>
+          {/* <div style={{ fontSize: 11, color: "#c4c9d4", fontFamily: "'DM Mono', monospace" }}>
+            {fmtTime(o.createdAt)}
+          </div> */}
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#111827", lineHeight: 1.2, marginBottom: 3 }}>
+            {o.delivery?.fullName || "—"}
+          </div>
+        </div>
+
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+          <div className={`cb${checked ? " on" : ""}`} onClick={e => { e.stopPropagation(); onToggle(); }}>
+            {checked ? "✓" : ""}
+          </div>
+        </div>
+      </div>
+      {/* Body: customer + products */}
+      <div className="card-body">
+
+        {/* <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#4f46e5", fontWeight: 500, marginBottom: 12 }}>
+          {o.delivery?.phone || "—"}
+        </div> */}
+
+        {/* Products - big name + quantity */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 2 }}>
+          {o.items?.map((item, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", lineHeight: 1.2 }}>{item.snapshot.name}</div>
+                {item.size && <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 1 }}>Size: {item.size}</div>}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "black", fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>×{item.quantity}</div>
+            </div>
+          ))}
+          {o.addons?.map((a, i) => (
+            <div key={`a${i}`} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: "#7e22ce", lineHeight: 1.2 }}>{a.snapshot.name}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "#7e22ce", fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>×{a.quantity}</div>
+            </div>
+          ))}
+        </div>
+
+        {o.adminNote && (
+          <div style={{ marginTop: 10, fontSize: 11, color: "#6b7280", fontStyle: "italic", background: "#f9fafb", borderRadius: 6, padding: "5px 8px", borderLeft: "3px solid #e5e7eb" }}>
+            {o.adminNote}
+          </div>
+        )}
+      </div>
+
+      {/* Footer: payment method + view link */}
+      <div className="card-footer">
+        <div>
+          {/* {o.payment?.method && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: o.payment.method === "Bkash" ? "#be185d" : "#475569", background: o.payment.method === "Bkash" ? "#fdf2f8" : "#f1f5f9", padding: "2px 7px", borderRadius: 5, textTransform: "uppercase", letterSpacing: ".04em" }}>
+              {o.payment.method}
+              {o.payment.method === "COD" && o.payment.cod?.confirmed && " ✓"}
+            </span>
+          )} */}
+          <span className="sbadge" style={{ background: st.bg, color: st.color }}>
+            <span className="sdot" style={{ background: st.dot }} />
+            {st.label}
+          </span>
+        </div>
+        <a
+          href={`/admin/orders/${o._id}`}
+          style={{ fontSize: 12, color: "#4f46e5", fontWeight: 700, textDecoration: "none", padding: "4px 10px", border: "1.5px solid #e0e7ff", borderRadius: 7, background: "#f5f3ff" }}
+          onClick={e => e.stopPropagation()}
+        >
+          View →
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Pagination button ─────────────────────────────────────────── */
+
+function PagBtn({ children, active, disabled, onClick }: {
+  children: React.ReactNode; active?: boolean; disabled?: boolean; onClick?: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="w-[34px] h-[34px] rounded-[var(--bw-radius-md)] flex items-center justify-center text-[13px] font-medium transition-all duration-100"
-      style={{
-        background: active ? "var(--bw-ink)" : "var(--bw-surface)",
-        color: active ? "var(--bw-bg)" : "var(--bw-muted)",
-        border: active ? "1.5px solid var(--bw-ink)" : "1.5px solid var(--bw-border)",
-        opacity: disabled ? 0.3 : 1,
-        cursor: disabled ? "not-allowed" : "pointer",
-        fontFamily: "var(--bw-font-body)",
-      }}
-    >
-      {children}
-    </button>
+    <button onClick={onClick} disabled={disabled} style={{
+      width: 34, height: 34, borderRadius: 8,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 13, fontWeight: 600,
+      cursor: disabled ? "not-allowed" : "pointer",
+      background: active ? "#1f2937" : "white",
+      color: active ? "white" : "#6b7280",
+      border: `1.5px solid ${active ? "#1f2937" : "#e5e7eb"}`,
+      opacity: disabled ? .35 : 1,
+      fontFamily: "'DM Sans', sans-serif",
+    }}>{children}</button>
   );
 }

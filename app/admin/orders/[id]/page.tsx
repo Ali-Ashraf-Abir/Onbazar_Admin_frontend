@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import RefundModal from "../../../../components/admin-order/RefundModal";
-
-const API = process.env.NEXT_PUBLIC_API_URL as string;
+import api, { ApiError } from "@/lib/api";
 
 const STATUS_OPTIONS = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"];
 const REFUND_STATUSES = new Set(["cancelled", "refunded"]);
@@ -41,6 +40,7 @@ export default function AdminOrderDetailPage() {
 
   const [order, setOrder] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [adminNote, setAdminNote] = useState("");
   const [codConfirm, setCodConfirm] = useState(false);
@@ -48,18 +48,20 @@ export default function AdminOrderDetailPage() {
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
-  const loadOrder = useCallback(() => {
+  const loadOrder = useCallback(async () => {
     if (!id) return;
-    fetch(`${API}/admin/orders/${id}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.data) {
-          setOrder(d.data);
-          setNewStatus(d.data.status);
-          setAdminNote(d.data.adminNote || "");
-          setCodConfirm(d.data.payment?.cod?.confirmed || false);
-        }
-      });
+    try {
+      const data = await api.get<{ data: any }>(`/admin/orders/${id}`);
+      if (data.data) {
+        setOrder(data.data);
+        setNewStatus(data.data.status);
+        setAdminNote(data.data.adminNote || "");
+        setCodConfirm(data.data.payment?.cod?.confirmed || false);
+      }
+    } catch (err) {
+      // Non-critical on initial load — api client handles 401/redirect automatically
+      console.error("[order detail] load failed", err);
+    }
   }, [id]);
 
   useEffect(() => { loadOrder(); }, [loadOrder]);
@@ -90,19 +92,20 @@ export default function AdminOrderDetailPage() {
 
   async function handleSave() {
     setSaving(true);
+    setSaveError(null);
     try {
       const body: any = { status: newStatus, adminNote: adminNote || null };
       if (order.payment?.method === "COD") body.payment = { cod: { confirmed: codConfirm } };
-      const res = await fetch(`${API}/admin/orders/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) { alert(data.message || "Update failed"); return; }
+
+      const data = await api.patch<{ data: any }>(`/admin/orders/${id}`, body);
       setOrder(data.data);
       setNewStatus(data.data.status);
-    } finally { setSaving(false); }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Update failed";
+      setSaveError(msg);
+    } finally {
+      setSaving(false);
+    }
   }
 
   /* ── Loading ── */
@@ -168,13 +171,6 @@ export default function AdminOrderDetailPage() {
 
   return (
     <>
-      {/* ── Refund Modal ─────────────────────────────────────────
-          Triggered by:
-            1. Selecting "Refunded" or "Cancelled" in the status dropdown
-            2. Clicking "↩ Issue Refund / Cancel" button in the sidebar
-            3. Clicking "Adjust →" on the refund banner (already-refunded orders)
-          On success the local order state updates immediately — no page reload.
-      ─────────────────────────────────────────────────────────── */}
       {showRefundModal && (
         <RefundModal
           order={order}
@@ -266,7 +262,6 @@ export default function AdminOrderDetailPage() {
                   )}
                 </div>
               </div>
-              {/* Re-open modal to issue an adjustment on already-refunded orders */}
               <button
                 onClick={() => setShowRefundModal(true)}
                 className="shrink-0 text-[12px] font-semibold px-3 py-1.5 rounded-[var(--bw-radius-md)] cursor-pointer transition-opacity hover:opacity-70"
@@ -362,7 +357,6 @@ export default function AdminOrderDetailPage() {
                     </thead>
                     <tbody>
                       {order.items?.map((item: any, i: number) => {
-                        // Tint rows for items that were (partially) refunded
                         const refundedItem = order.refund?.items?.find((ri: any) =>
                           ri.product?.toString() === (item.product?._id ?? item.product)?.toString()
                           && ri.size === item.size
@@ -389,7 +383,6 @@ export default function AdminOrderDetailPage() {
                                     style={{ background: "var(--bw-surface-alt)" }}
                                   >📷</div>
                                 )}
-                                {/* Red ↩ badge on image corner for refunded items */}
                                 {refundedItem && (
                                   <div
                                     className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
@@ -494,38 +487,28 @@ export default function AdminOrderDetailPage() {
                       { label: "Items Subtotal", value: fmt(order.pricing?.itemsSubtotal, cur), show: true },
                       { label: "Add-ons Subtotal", value: fmt(order.pricing?.addonsSubtotal, cur), show: (order.pricing?.addonsSubtotal ?? 0) > 0 },
                       { label: "Delivery Charge", value: delivery != null ? fmt(delivery, cur) : "Not set", show: delivery != null },
-
                     ].filter(r => r.show).map(({ label, value }) => (
                       <div key={label} className="flex justify-between text-[13px] py-1">
                         <span style={{ color: "var(--bw-muted)" }}>{label}</span>
                         <span className="font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{value}</span>
                       </div>
                     ))}
-                    {
-                      order.promo?.discountAmount ? <div
-                        className="flex justify-between text-[13px]  mt-2 pt-3"
-                        style={{  color: "var(--bw-muted)" }}
-                      >
+                    {order.promo?.discountAmount ? (
+                      <div className="flex justify-between text-[13px] mt-2 pt-3" style={{ color: "var(--bw-muted)" }}>
                         <span>Promo Discount</span>
-                        {
-                          order.promo?.discountAmount ? <span className="tabular-nums font-bold" style={{ color: "var(--bw-ink)" }}>-{fmt(order.promo?.discountAmount, cur)}</span> :
-                            ''
-                        }
-
-                      </div> : ''
-                    }
+                        <span className="tabular-nums font-bold" style={{ color: "var(--bw-ink)" }}>-{fmt(order.promo?.discountAmount, cur)}</span>
+                      </div>
+                    ) : null}
                     <div
                       className="flex justify-between text-[16px] font-bold mt-2 pt-3"
                       style={{ borderTop: "1px solid var(--bw-border)", color: "var(--bw-ink)" }}
                     >
                       <span>Grand Total</span>
-                      {
-                        order.pricing?.grandTotal ? <span className="tabular-nums">{fmt(order.pricing?.grandTotal, cur)}</span> :
-                          <span className="tabular-nums">{fmt(order.pricing?.subtotal, cur)}</span>
+                      {order.pricing?.grandTotal
+                        ? <span className="tabular-nums">{fmt(order.pricing?.grandTotal, cur)}</span>
+                        : <span className="tabular-nums">{fmt(order.pricing?.subtotal, cur)}</span>
                       }
-
                     </div>
-                    {/* Net collected — only shown once a refund has been recorded */}
                     {order.refund?.refundedAmount != null && (
                       <>
                         <div className="flex justify-between text-[13px] py-1 mt-1">
@@ -660,7 +643,6 @@ export default function AdminOrderDetailPage() {
                     ))}
                   </select>
 
-                  {/* Transition hint */}
                   {newStatus !== order.status && !showRefundModal && (
                     <div className="mt-2 text-[12px] font-semibold" style={{ color: "var(--bw-amber)" }}>
                       {STATUS_STYLES[order.status]?.label} → {STATUS_STYLES[newStatus]?.label}
@@ -672,7 +654,6 @@ export default function AdminOrderDetailPage() {
                     </div>
                   )}
 
-                  {/* Quick refund button — shown while order is not yet closed */}
                   {!REFUND_STATUSES.has(order.status) && (
                     <button
                       onClick={() => setShowRefundModal(true)}
@@ -713,21 +694,31 @@ export default function AdminOrderDetailPage() {
 
               {/* Save — hidden while the modal is open to avoid double-saving */}
               {!showRefundModal && (
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full h-11 rounded-[var(--bw-radius-md)] text-[14px] font-bold flex items-center justify-center gap-2 transition-opacity duration-150 disabled:opacity-60"
-                  style={{
-                    background: "var(--bw-ink)",
-                    color: "var(--bw-bg)",
-                    border: "none",
-                    cursor: saving ? "not-allowed" : "pointer",
-                    fontFamily: "var(--bw-font-body)",
-                    boxShadow: "var(--bw-shadow-md)",
-                  }}
-                >
-                  {saving ? <><span className="as-spinner" />Saving…</> : "Save Changes →"}
-                </button>
+                <div className="flex flex-col gap-2">
+                  {saveError && (
+                    <div
+                      className="text-[12px] font-semibold px-3 py-2 rounded-[var(--bw-radius-md)]"
+                      style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.2)" }}
+                    >
+                      ⚠ {saveError}
+                    </div>
+                  )}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full h-11 rounded-[var(--bw-radius-md)] text-[14px] font-bold flex items-center justify-center gap-2 transition-opacity duration-150 disabled:opacity-60"
+                    style={{
+                      background: "var(--bw-ink)",
+                      color: "var(--bw-bg)",
+                      border: "none",
+                      cursor: saving ? "not-allowed" : "pointer",
+                      fontFamily: "var(--bw-font-body)",
+                      boxShadow: "var(--bw-shadow-md)",
+                    }}
+                  >
+                    {saving ? <><span className="as-spinner" />Saving…</> : "Save Changes →"}
+                  </button>
+                </div>
               )}
 
               {/* Meta */}
