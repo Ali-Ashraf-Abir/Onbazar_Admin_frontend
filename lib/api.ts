@@ -3,17 +3,17 @@
  * Central API client for the OnBazar Next.js admin panel.
  */
 
-const BASE_URL =  "/api";
+const BASE_URL = "/api";
 
 /* ── in-memory token (never localStorage) ──────────────────────────── */
 let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null): void { accessToken = token; }
-export function getAccessToken(): string | null            { return accessToken;   }
-export function clearAccessToken(): void                   { accessToken = null;   }
+export function getAccessToken(): string | null { return accessToken; }
+export function clearAccessToken(): void { accessToken = null; }
 
 /* ── refresh queue ──────────────────────────────────────────────────── */
-let isRefreshing       = false;
+let isRefreshing = false;
 let refreshSubscribers: Array<(token: string | null) => void> = [];
 
 function subscribeToRefresh(cb: (token: string | null) => void) {
@@ -27,12 +27,12 @@ function notifySubscribers(token: string | null) {
 /* ── error class ────────────────────────────────────────────────────── */
 export class ApiError extends Error {
     status: number;
-    data:   unknown;
+    data: unknown;
     constructor(message: string, status: number, data: unknown) {
         super(message);
-        this.name   = "ApiError";
+        this.name = "ApiError";
         this.status = status;
-        this.data   = data;
+        this.data = data;
     }
 }
 
@@ -88,8 +88,8 @@ async function request<T = unknown>(endpoint: string, options: RequestOptions = 
         if (!isRefreshing) {
             isRefreshing = true;
             try {
-                const res      = await rawFetch("/auth/refresh", { method: "POST" });
-                const data     = await res.json();
+                const res = await rawFetch("/auth/refresh", { method: "POST" });
+                const data = await res.json();
                 if (!res.ok) throw new Error("Refresh failed");
                 const newToken = data.accessToken as string;
                 setAccessToken(newToken);
@@ -139,13 +139,15 @@ async function upload<T = unknown>(
 
 /* ── public API ─────────────────────────────────────────────────────── */
 const api = {
-    get:    <T = unknown>(endpoint: string, options?: RequestOptions) =>
+    get: <T = unknown>(endpoint: string, options?: RequestOptions) =>
         request<T>(endpoint, { ...options, method: "GET" }),
+    put: <T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions) =>
+        request<T>(endpoint, { ...options, method: "PUT", body }),
 
-    post:   <T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions) =>
+    post: <T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions) =>
         request<T>(endpoint, { ...options, method: "POST", body }),
 
-    patch:  <T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions) =>
+    patch: <T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions) =>
         request<T>(endpoint, { ...options, method: "PATCH", body }),
 
     delete: <T = unknown>(endpoint: string, options?: RequestOptions) =>

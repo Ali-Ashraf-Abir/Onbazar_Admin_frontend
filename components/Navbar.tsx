@@ -4,15 +4,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
 
-const routes = [
+/* ═══════════════════════════════════════════════════════
+   PRIMARY ROUTES — always visible on desktop
+   ═══════════════════════════════════════════════════════ */
+const primaryRoutes = [
   {
     path: "/admin/products",
     label: "Products",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-        <line x1="12" y1="22.08" x2="12" y2="12"/>
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
       </svg>
     ),
   },
@@ -21,8 +24,8 @@ const routes = [
     label: "Orders",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 11l3 3L22 4"/>
-        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
       </svg>
     ),
   },
@@ -31,31 +34,10 @@ const routes = [
     label: "Categories",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7"/>
-        <rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/>
-        <rect x="3" y="14" width="7" height="7"/>
-      </svg>
-    ),
-  },
-  {
-    path: "/admin/addons",
-    label: "Add-ons",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="16"/>
-        <line x1="8" y1="12" x2="16" y2="12"/>
-      </svg>
-    ),
-  },
-  {
-    path: "/admin/promo",
-    label: "Promo",
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-        <line x1="7" y1="7" x2="7.01" y2="7"/>
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
       </svg>
     ),
   },
@@ -64,53 +46,122 @@ const routes = [
     label: "Analytics",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10"/>
-        <line x1="12" y1="20" x2="12" y2="4"/>
-        <line x1="6" y1="20" x2="6" y2="14"/>
-        <line x1="2" y1="20" x2="22" y2="20"/>
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+        <line x1="2" y1="20" x2="22" y2="20" />
+      </svg>
+    ),
+  },
+];
+
+/* ═══════════════════════════════════════════════════════
+   SECONDARY ROUTES — tucked into a "More" dropdown
+   ═══════════════════════════════════════════════════════ */
+const moreRoutes = [
+  {
+    path: "/admin/addons",
+    label: "Add-ons",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="16" />
+        <line x1="8" y1="12" x2="16" y2="12" />
       </svg>
     ),
   },
   {
-  path: "/admin/keyrings",
-  label: "Keyrings",
-  icon: (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {/* Key head (circle) */}
-      <circle cx="7" cy="12" r="3" />
-      
-      {/* Key shaft */}
-      <line x1="10" y1="12" x2="21" y2="12" />
-      
-      {/* Key teeth */}
-      <line x1="17" y1="12" x2="17" y2="15" />
-      <line x1="20" y1="12" x2="20" y2="14" />
-    </svg>
-  ),
-}
+    path: "/admin/promo",
+    label: "Promo",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+        <line x1="7" y1="7" x2="7.01" y2="7" />
+      </svg>
+    ),
+  },
+  {
+    path: "/admin/keyrings",
+    label: "Keyrings",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="7" cy="12" r="3" />
+        <line x1="10" y1="12" x2="21" y2="12" />
+        <line x1="17" y1="12" x2="17" y2="15" />
+        <line x1="20" y1="12" x2="20" y2="14" />
+      </svg>
+    ),
+  },
+  {
+    path: "/admin/magazines",
+    label: "Magazines",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="3" y1="15" x2="21" y2="15" />
+      </svg>
+    ),
+  },
+  {
+    path: "/admin/user-magazines",
+    label: "User Magazines",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="13" height="16" rx="2" ry="2" />
+        <line x1="7" y1="8" x2="12" y2="8" />
+        <line x1="7" y1="12" x2="12" y2="12" />
+        <circle cx="19" cy="7" r="2.5" />
+        <path d="M15.5 21c0-2 1.5-3.5 3.5-3.5s3.5 1.5 3.5 3.5" />
+      </svg>
+    ),
+  },
+  {
+    path: "/admin/templates",
+    label: "Templates",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+      </svg>
+    ),
+  },
+  {
+    path: "/admin/map",
+    label: "Map",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+        <line x1="8" y1="2" x2="8" y2="18" />
+        <line x1="16" y1="6" x2="16" y2="22" />
+      </svg>
+    ),
+  },
 ];
+
+/* All routes combined — used for mobile drawer + active-state checks */
+const allRoutes = [...primaryRoutes, ...moreRoutes];
 
 /* ── Spinner SVG ── */
 const Spinner = ({ size = 15 }: { size?: number }) => (
   <svg className="animate-spin" width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeDashoffset="12"/>
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeDashoffset="12" />
   </svg>
 );
 
 const LogoutIcon = ({ size = 15 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-    <polyline points="16 17 21 12 16 7"/>
-    <line x1="21" y1="12" x2="9" y2="12"/>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
+
+const ChevronDown = ({ size = 13 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9" />
   </svg>
 );
 
@@ -118,14 +169,16 @@ const LogoutIcon = ({ size = 15 }: { size?: number }) => (
 
 export default function AdminNavbar() {
   const pathname = usePathname();
-  const router   = useRouter();
+  const router = useRouter();
   const { user, logout } = useAuth();
 
-  const [menuOpen,     setMenuOpen]     = useState(false);
-  const [scrolled,     setScrolled]     = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [loggingOut,   setLoggingOut]   = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLLIElement>(null);
 
   /* ── scroll shadow ── */
   useEffect(() => {
@@ -141,14 +194,17 @@ export default function AdminNavbar() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  /* ── close drawer on route change ── */
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  /* ── close drawer/dropdowns on route change ── */
+  useEffect(() => { setMenuOpen(false); setMoreOpen(false); }, [pathname]);
 
-  /* ── close dropdown on outside click ── */
+  /* ── close dropdowns on outside click ── */
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
       }
     }
     document.addEventListener("mousedown", onOutside);
@@ -172,6 +228,9 @@ export default function AdminNavbar() {
     ? user.fullName.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
     : "AD";
 
+  /* is any "more" route currently active? */
+  const moreActive = moreRoutes.some(r => r.path === pathname);
+
   /* ── shared nav link styles ── */
   const navLinkBase = "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[13.5px] font-medium tracking-[0.01em] whitespace-nowrap transition-all duration-150 no-underline";
   const navLinkIdle = "text-[rgba(250,250,250,0.55)] hover:text-[var(--bw-bg)] hover:bg-[rgba(250,250,250,0.07)]";
@@ -183,14 +242,17 @@ export default function AdminNavbar() {
     <>
       {/* Keyframe for mobile drawer */}
       <style>{`
-        .bw-drawer { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease; }
-        .bw-drawer.open { max-height: 420px; opacity: 1; }
+        .bw-drawer { overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease; }
+        .bw-drawer.open { max-height: 640px; opacity: 1; }
         .bw-ham-line { width: 18px; height: 1.5px; border-radius: 2px; background: var(--bw-bg); transition: transform 0.2s ease, opacity 0.2s ease; transform-origin: center; }
         .bw-ham.open .bw-ham-line:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
         .bw-ham.open .bw-ham-line:nth-child(2) { opacity: 0; transform: scaleX(0); }
         .bw-ham.open .bw-ham-line:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
         .bw-dropdown { opacity: 0; transform: translateY(-6px) scale(0.97); pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease; transform-origin: top right; }
         .bw-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        .bw-dropdown.left { transform-origin: top left; }
+        .bw-chevron { transition: transform 0.15s ease; }
+        .bw-chevron.open { transform: rotate(180deg); }
       `}</style>
 
       <nav
@@ -198,7 +260,7 @@ export default function AdminNavbar() {
         style={{
           background: "var(--bw-ink)",
           fontFamily: "var(--bw-font-body)",
-          boxShadow:  scrolled ? "0 8px 32px rgba(0,0,0,0.22)" : "none",
+          boxShadow: scrolled ? "0 8px 32px rgba(0,0,0,0.22)" : "none",
         }}
       >
         {/* ── Main bar ── */}
@@ -211,8 +273,8 @@ export default function AdminNavbar() {
               style={{ background: "var(--bw-ghost)" }}
             >
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--bw-ink)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
               </svg>
             </div>
             <div className="flex flex-col leading-none">
@@ -233,7 +295,7 @@ export default function AdminNavbar() {
 
           {/* Desktop nav links */}
           <ul className="hidden md:flex items-center gap-0.5 list-none">
-            {routes.map((r) => {
+            {primaryRoutes.map((r) => {
               const active = pathname === r.path;
               return (
                 <li key={r.path}>
@@ -249,6 +311,57 @@ export default function AdminNavbar() {
                 </li>
               );
             })}
+
+            {/* "More" dropdown for secondary routes */}
+            <li className="relative" ref={moreRef}>
+              <button
+                onClick={() => setMoreOpen(v => !v)}
+                aria-expanded={moreOpen}
+                className={`${navLinkBase} ${moreActive ? navLinkActive : navLinkIdle}`}
+                style={{ border: "none", cursor: "pointer" }}
+              >
+                <span style={{ opacity: moreActive ? 1 : 0.5, flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="5" cy="12" r="1.5" />
+                    <circle cx="12" cy="12" r="1.5" />
+                    <circle cx="19" cy="12" r="1.5" />
+                  </svg>
+                </span>
+                More
+                <span className={`bw-chevron ${moreOpen ? "open" : ""}`}><ChevronDown /></span>
+              </button>
+
+              <div
+                className={`bw-dropdown left absolute top-[calc(100%+10px)] left-0 min-w-[200px] rounded-[var(--bw-radius-md)] overflow-hidden z-50 ${moreOpen ? "open" : ""}`}
+                style={{
+                  background: "var(--bw-surface)",
+                  border: "1px solid var(--bw-border)",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.16)",
+                }}
+              >
+                {moreRoutes.map((r, i) => {
+                  const active = pathname === r.path;
+                  return (
+                    <Link
+                      key={r.path}
+                      href={r.path}
+                      onClick={() => setMoreOpen(false)}
+                      className="flex items-center gap-2.5 w-full px-3.5 py-2.5 text-[13px] font-medium text-left no-underline transition-colors duration-150"
+                      style={{
+                        color: active ? "var(--bw-ink)" : "var(--bw-muted)",
+                        background: active ? "var(--bw-ghost)" : "transparent",
+                        borderTop: i > 0 ? "1px solid var(--bw-border)" : "none",
+                      }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--bw-border)"; }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span style={{ opacity: active ? 1 : 0.6, flexShrink: 0 }}>{r.icon}</span>
+                      {r.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </li>
           </ul>
 
           {/* Right: avatar + hamburger */}
@@ -262,9 +375,9 @@ export default function AdminNavbar() {
                 aria-expanded={dropdownOpen}
                 className="w-[34px] h-[34px] rounded-full flex items-center justify-center transition-all duration-150"
                 style={{
-                  background:  dropdownOpen ? "rgba(250,250,250,0.18)" : "rgba(250,250,250,0.10)",
-                  border:      `1.5px solid ${dropdownOpen ? "var(--bw-ghost)" : "rgba(250,250,250,0.2)"}`,
-                  cursor:      "pointer",
+                  background: dropdownOpen ? "rgba(250,250,250,0.18)" : "rgba(250,250,250,0.10)",
+                  border: `1.5px solid ${dropdownOpen ? "var(--bw-ghost)" : "rgba(250,250,250,0.2)"}`,
+                  cursor: "pointer",
                 }}
               >
                 <span
@@ -280,8 +393,8 @@ export default function AdminNavbar() {
                 className={`bw-dropdown absolute top-[calc(100%+10px)] right-0 min-w-[200px] rounded-[var(--bw-radius-md)] overflow-hidden z-50 ${dropdownOpen ? "open" : ""}`}
                 style={{
                   background: "var(--bw-surface)",
-                  border:     "1px solid var(--bw-border)",
-                  boxShadow:  "0 8px 32px rgba(0,0,0,0.16)",
+                  border: "1px solid var(--bw-border)",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.16)",
                 }}
               >
                 {/* User info */}
@@ -306,11 +419,11 @@ export default function AdminNavbar() {
                   disabled={loggingOut}
                   className="flex items-center gap-2.5 w-full px-3.5 py-2.5 text-[13px] font-medium text-left transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
-                    background:  "transparent",
-                    border:      "none",
-                    color:       "var(--bw-red)",
-                    fontFamily:  "var(--bw-font-body)",
-                    cursor:      loggingOut ? "not-allowed" : "pointer",
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--bw-red)",
+                    fontFamily: "var(--bw-font-body)",
+                    cursor: loggingOut ? "not-allowed" : "pointer",
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = "var(--bw-red-bg)"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
@@ -329,9 +442,9 @@ export default function AdminNavbar() {
               className={`bw-ham md:hidden flex flex-col justify-center items-center gap-[5px] w-9 h-9 rounded-[var(--bw-radius-sm)] transition-colors duration-150 ${menuOpen ? "open" : ""}`}
               style={{
                 background: "transparent",
-                border:     "none",
-                cursor:     "pointer",
-                padding:    6,
+                border: "none",
+                cursor: "pointer",
+                padding: 6,
               }}
             >
               <span className="bw-ham-line" />
@@ -346,8 +459,9 @@ export default function AdminNavbar() {
           className={`bw-drawer md:hidden ${menuOpen ? "open" : ""}`}
           style={{ borderTop: "1px solid rgba(250,250,250,0.07)" }}
         >
-          <ul className="list-none px-4 pt-2.5 pb-4 flex flex-col gap-0.5">
-            {routes.map((r, i) => {
+          <ul className="list-none px-4 pt-2.5 pb-4 flex flex-col gap-0.5 max-h-[70vh] overflow-y-auto">
+            {/* Primary section */}
+            {primaryRoutes.map((r, i) => {
               const active = pathname === r.path;
               return (
                 <li key={r.path}>
@@ -357,11 +471,44 @@ export default function AdminNavbar() {
                   <Link
                     href={r.path}
                     onClick={() => setMenuOpen(false)}
-                    className={`${mobileNavBase} ${
-                      active
+                    className={`${mobileNavBase} ${active
                         ? "font-semibold"
                         : "text-[rgba(250,250,250,0.55)] hover:text-[var(--bw-bg)] hover:bg-[rgba(250,250,250,0.06)]"
-                    }`}
+                      }`}
+                    style={active ? { color: "var(--bw-ink)", background: "var(--bw-ghost)" } : {}}
+                  >
+                    <span style={{ opacity: active ? 1 : 0.5 }}>{r.icon}</span>
+                    {r.label}
+                  </Link>
+                </li>
+              );
+            })}
+
+            {/* Section label */}
+            <li className="pt-3 pb-1 px-3.5">
+              <span
+                className="text-[10px] font-semibold tracking-[0.12em] uppercase"
+                style={{ color: "rgba(250,250,250,0.3)" }}
+              >
+                More
+              </span>
+            </li>
+
+            {/* Secondary section */}
+            {moreRoutes.map((r, i) => {
+              const active = pathname === r.path;
+              return (
+                <li key={r.path}>
+                  {i > 0 && (
+                    <div className="h-px my-1" style={{ background: "rgba(250,250,250,0.06)" }} />
+                  )}
+                  <Link
+                    href={r.path}
+                    onClick={() => setMenuOpen(false)}
+                    className={`${mobileNavBase} ${active
+                        ? "font-semibold"
+                        : "text-[rgba(250,250,250,0.55)] hover:text-[var(--bw-bg)] hover:bg-[rgba(250,250,250,0.06)]"
+                      }`}
                     style={active ? { color: "var(--bw-ink)", background: "var(--bw-ghost)" } : {}}
                   >
                     <span style={{ opacity: active ? 1 : 0.5 }}>{r.icon}</span>
@@ -379,10 +526,10 @@ export default function AdminNavbar() {
                 disabled={loggingOut}
                 className={`${mobileNavBase} disabled:opacity-50 disabled:cursor-not-allowed`}
                 style={{
-                  color:      "rgba(220,38,38,0.8)",
+                  color: "rgba(220,38,38,0.8)",
                   background: "transparent",
-                  border:     "none",
-                  cursor:     loggingOut ? "not-allowed" : "pointer",
+                  border: "none",
+                  cursor: loggingOut ? "not-allowed" : "pointer",
                   fontFamily: "var(--bw-font-body)",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.color = "var(--bw-red)"; e.currentTarget.style.background = "rgba(220,38,38,0.08)"; }}
