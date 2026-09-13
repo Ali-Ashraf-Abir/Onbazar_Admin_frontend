@@ -435,8 +435,9 @@ export default function AdminTemplateDetailPage() {
                   Canvas Template (Read-only)
                 </h2>
                 <CanvasEditor
-                  backgroundImage={template?.backgroundImage}
+                  backgroundImage={template?.canvas?.backgroundImage || ""}
                   placeholders={template?.imagePlaceholders || []}
+                  textPlaceholders={template?.textPlaceholders || []}
                   readOnly={true}
                 />
               </div>
