@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "../../../../lib/api";
-import CanvasEditor, { CanvasPlaceholder, A4_WIDTH_PX, A4_HEIGHT_PX } from "../canvas-editor";
-
+import CanvasEditor, { CanvasPlaceholder, CanvasTextPlaceholder, FontOption, A4_WIDTH_PX, A4_HEIGHT_PX } from "../canvas-editor";
 const FIELD_TYPES = ["text", "textarea", "image", "number", "date"];
 
 interface Field {
@@ -46,11 +45,26 @@ export default function AdminCreateTemplatePage() {
   const [canvasData, setCanvasData] = useState<{
     backgroundImage: string;
     imagePlaceholders: CanvasPlaceholder[];
+    textPlaceholders: CanvasTextPlaceholder[];
   }>({
     backgroundImage: "",
     imagePlaceholders: [],
+    textPlaceholders: [],
   });
 
+  const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
+
+  useEffect(() => {
+    async function loadFonts() {
+      try {
+        const res = await api.get<{ data: FontOption[] }>("/fonts?isActive=true");
+        setAvailableFonts(res.data);
+      } catch (err) {
+        console.error("Failed to load fonts", err); // non-fatal — falls back to system fonts
+      }
+    }
+    loadFonts();
+  }, []);
   /* ─────────────────────── form actions ─────────────────────── */
 
   function handleInputChange(
@@ -258,6 +272,7 @@ export default function AdminCreateTemplatePage() {
             height: A4_HEIGHT_PX,
           },
           imagePlaceholders: canvasData.imagePlaceholders,
+          textPlaceholders: canvasData.textPlaceholders, // ← added
         };
 
         const response = await api.post("/admin/templates", payload);
@@ -589,6 +604,8 @@ export default function AdminCreateTemplatePage() {
               <CanvasEditor
                 backgroundImage={canvasData.backgroundImage}
                 placeholders={canvasData.imagePlaceholders}
+                textPlaceholders={canvasData.textPlaceholders}
+                availableFonts={availableFonts}
                 onChange={(data) => setCanvasData(data)}
               />
             )}
