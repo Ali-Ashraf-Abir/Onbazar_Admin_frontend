@@ -13,6 +13,10 @@ export interface CanvasPlaceholder {
   height: number;
   rotation: number;
   backgroundFit: "contain" | "cover" | "fill";
+  // Stack order relative to other image placeholders, the canvas
+  // background/frame, and text placeholders. Default of 1 matches the
+  // previous hardcoded "images always at the bottom" behavior.
+  zIndex: number;
 }
 
 export interface CanvasTextPlaceholder {
@@ -52,13 +56,25 @@ export interface FontOption {
   style: "normal" | "italic";
 }
 
+// Placeholders coming in as props may be from templates saved before
+// zIndex existed, so zIndex is optional on input — it gets defaulted
+// once, on the way into state (see the useState initializers below).
+// Internally (CanvasPlaceholder / CanvasTextPlaceholder) zIndex stays
+// required, since every item in state is guaranteed to have one.
+type CanvasPlaceholderInput = Omit<CanvasPlaceholder, "zIndex"> & { zIndex?: number };
+type CanvasTextPlaceholderInput = Omit<CanvasTextPlaceholder, "zIndex"> & { zIndex?: number };
+
 interface CanvasEditorProps {
   backgroundImage?: string;
-  placeholders?: CanvasPlaceholder[];
-  textPlaceholders?: CanvasTextPlaceholder[];
+  // Stack order of the background/frame relative to placeholders.
+  // Default of 2 matches the previous hardcoded middle-layer behavior.
+  backgroundZIndex?: number;
+  placeholders?: CanvasPlaceholderInput[];
+  textPlaceholders?: CanvasTextPlaceholderInput[];
   availableFonts?: FontOption[];
   onChange?: (data: {
     backgroundImage: string;
+    backgroundZIndex: number;
     imagePlaceholders: CanvasPlaceholder[];
     textPlaceholders: CanvasTextPlaceholder[];
   }) => void;
@@ -76,6 +92,10 @@ export const A4_HEIGHT_PX = Math.round(A4_HEIGHT * SCALE); // ~1123px
 
 const HANDLE_SIZE = 8;
 const MIN_SIZE = 30;
+
+const DEFAULT_IMAGE_Z = 1;
+const DEFAULT_BACKGROUND_Z = 2;
+const DEFAULT_TEXT_Z = 3;
 
 const SYSTEM_FONTS = [
   "Arial",
@@ -96,6 +116,7 @@ type SelectedItem = {
 
 export default function CanvasEditor({
   backgroundImage: initialBg = "",
+  backgroundZIndex: initialBgZIndex = DEFAULT_BACKGROUND_Z,
   placeholders: initialPlaceholders = [],
   textPlaceholders: initialTextPlaceholders = [],
   availableFonts = [],
@@ -107,11 +128,17 @@ export default function CanvasEditor({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [backgroundImage, setBackgroundImage] = useState<string>(initialBg);
+  const [backgroundZIndex, setBackgroundZIndex] = useState<number>(
+    initialBgZIndex ?? DEFAULT_BACKGROUND_Z
+  );
+  // Spread first, then default zIndex with `??` — this way the fallback
+  // only applies when the incoming placeholder genuinely has no zIndex
+  // (older saved templates), and never overwrites a real value of 0.
   const [placeholders, setPlaceholders] = useState<CanvasPlaceholder[]>(
-    initialPlaceholders
+    initialPlaceholders.map((p) => ({ ...p, zIndex: p.zIndex ?? DEFAULT_IMAGE_Z }))
   );
   const [textPlaceholders, setTextPlaceholders] = useState<CanvasTextPlaceholder[]>(
-    initialTextPlaceholders
+    initialTextPlaceholders.map((p) => ({ ...p, zIndex: p.zIndex ?? DEFAULT_TEXT_Z }))
   );
   const [selected, setSelected] = useState<SelectedItem | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -164,10 +191,16 @@ export default function CanvasEditor({
 
   function emitChange(
     bg: string,
+    bgZ: number,
     imgP: CanvasPlaceholder[],
     txtP: CanvasTextPlaceholder[]
   ) {
-    onChange?.({ backgroundImage: bg, imagePlaceholders: imgP, textPlaceholders: txtP });
+    onChange?.({
+      backgroundImage: bg,
+      backgroundZIndex: bgZ,
+      imagePlaceholders: imgP,
+      textPlaceholders: txtP,
+    });
   }
 
   // Calculate canvas scale to fit in container
@@ -203,119 +236,143 @@ export default function CanvasEditor({
     ctx.fillStyle = "#f9fafb";
     ctx.fillRect(0, 0, A4_WIDTH_PX, A4_HEIGHT_PX);
 
-    // Draw background image if available
     if (backgroundImage) {
       const img = new Image();
       img.onload = () => {
-        ctx.save();
-        ctx.globalAlpha = 0.95;
-        ctx.drawImage(img, 0, 0, A4_WIDTH_PX, A4_HEIGHT_PX);
-        ctx.restore();
-        // Re-draw placeholders on top of image
-        drawAllPlaceholders(ctx);
+        drawLayered(ctx, img);
       };
       img.crossOrigin = "anonymous";
       img.src = backgroundImage;
     } else {
-      drawAllPlaceholders(ctx);
+      drawLayered(ctx, null);
     }
-  }, [backgroundImage, placeholders, textPlaceholders, selected]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backgroundImage, backgroundZIndex, placeholders, textPlaceholders, selected]);
 
-  function drawAllPlaceholders(ctx: CanvasRenderingContext2D) {
-    // Draw image placeholders
-    placeholders.forEach((placeholder) => {
-      const isSelected = selected?.type === "image" && selected?.id === placeholder.id;
+  // Draw the background image, image placeholders, and text
+  // placeholders in ascending zIndex order, instead of the old fixed
+  // "background always drawn between images and text" order. Ties keep
+  // insertion order (images, text, background) to match prior behavior.
+  function drawLayered(ctx: CanvasRenderingContext2D, bgImg: HTMLImageElement | null) {
+    type DrawLayer =
+      | { kind: "background"; zIndex: number }
+      | { kind: "image"; zIndex: number; placeholder: CanvasPlaceholder }
+      | { kind: "text"; zIndex: number; placeholder: CanvasTextPlaceholder };
 
-      ctx.save();
-      ctx.translate(
-        placeholder.x + placeholder.width / 2,
-        placeholder.y + placeholder.height / 2
-      );
-      ctx.rotate((placeholder.rotation * Math.PI) / 180);
+    const layers: DrawLayer[] = [];
 
-      // Draw rectangle
-      ctx.fillStyle = isSelected ? "rgba(59,130,246,0.25)" : "rgba(59,130,246,0.12)";
-      ctx.strokeStyle = isSelected ? "#3b82f6" : "#bfdbfe";
-      ctx.lineWidth = isSelected ? 2 : 1;
-      ctx.fillRect(
-        -placeholder.width / 2,
-        -placeholder.height / 2,
-        placeholder.width,
-        placeholder.height
-      );
-      ctx.strokeRect(
-        -placeholder.width / 2,
-        -placeholder.height / 2,
-        placeholder.width,
-        placeholder.height
-      );
+    for (const p of placeholders) {
+      layers.push({ kind: "image", zIndex: p.zIndex ?? DEFAULT_IMAGE_Z, placeholder: p });
+    }
+    for (const tp of textPlaceholders) {
+      layers.push({ kind: "text", zIndex: tp.zIndex ?? DEFAULT_TEXT_Z, placeholder: tp });
+    }
+    if (bgImg) {
+      layers.push({ kind: "background", zIndex: backgroundZIndex ?? DEFAULT_BACKGROUND_Z });
+    }
 
-      // Draw label
-      if (placeholder.label) {
-        ctx.font = "bold 12px sans-serif";
-        ctx.fillStyle = "#1f2937";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(placeholder.label, 0, 0);
+    const sorted = layers
+      .map((layer, index) => ({ layer, index }))
+      .sort((a, b) => a.layer.zIndex - b.layer.zIndex || a.index - b.index)
+      .map((entry) => entry.layer);
+
+    for (const layer of sorted) {
+      if (layer.kind === "background" && bgImg) {
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.drawImage(bgImg, 0, 0, A4_WIDTH_PX, A4_HEIGHT_PX);
+        ctx.restore();
+      } else if (layer.kind === "image") {
+        drawImagePlaceholder(ctx, layer.placeholder);
+      } else if (layer.kind === "text") {
+        drawTextPlaceholder(ctx, layer.placeholder);
       }
+    }
+  }
 
-      // Draw image icon
-      ctx.font = "16px sans-serif";
-      ctx.fillStyle = "#6b7280";
+  function drawImagePlaceholder(ctx: CanvasRenderingContext2D, placeholder: CanvasPlaceholder) {
+    const isSelected = selected?.type === "image" && selected?.id === placeholder.id;
+
+    ctx.save();
+    ctx.translate(
+      placeholder.x + placeholder.width / 2,
+      placeholder.y + placeholder.height / 2
+    );
+    ctx.rotate((placeholder.rotation * Math.PI) / 180);
+
+    ctx.fillStyle = isSelected ? "rgba(59,130,246,0.25)" : "rgba(59,130,246,0.12)";
+    ctx.strokeStyle = isSelected ? "#3b82f6" : "#bfdbfe";
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.fillRect(
+      -placeholder.width / 2,
+      -placeholder.height / 2,
+      placeholder.width,
+      placeholder.height
+    );
+    ctx.strokeRect(
+      -placeholder.width / 2,
+      -placeholder.height / 2,
+      placeholder.width,
+      placeholder.height
+    );
+
+    if (placeholder.label) {
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillStyle = "#1f2937";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("🖼️", 0, placeholder.label ? -18 : 0);
+      ctx.fillText(placeholder.label, 0, 0);
+    }
 
-      ctx.restore();
+    ctx.font = "16px sans-serif";
+    ctx.fillStyle = "#6b7280";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("🖼️", 0, placeholder.label ? -18 : 0);
 
-      // Draw handles if selected
-      if (isSelected && !readOnly) {
-        drawHandles(ctx, placeholder);
-      }
-    });
+    ctx.restore();
 
-    // Draw text placeholders
-    textPlaceholders.forEach((tp) => {
-      const isSelected2 = selected?.type === "text" && selected?.id === tp.id;
+    if (isSelected && !readOnly) {
+      drawHandles(ctx, placeholder);
+    }
+  }
 
-      ctx.save();
-      ctx.translate(tp.x + tp.width / 2, tp.y + tp.height / 2);
-      ctx.rotate((tp.rotation * Math.PI) / 180);
+  function drawTextPlaceholder(ctx: CanvasRenderingContext2D, tp: CanvasTextPlaceholder) {
+    const isSelected2 = selected?.type === "text" && selected?.id === tp.id;
 
-      // Draw rectangle with distinct styling (green tint for text)
-      ctx.fillStyle = isSelected2 ? "rgba(16,185,129,0.25)" : "rgba(16,185,129,0.08)";
-      ctx.strokeStyle = isSelected2 ? "#10b981" : "#a7f3d0";
-      ctx.lineWidth = isSelected2 ? 2 : 1;
-      ctx.setLineDash(isSelected2 ? [] : [4, 4]);
-      ctx.fillRect(-tp.width / 2, -tp.height / 2, tp.width, tp.height);
-      ctx.strokeRect(-tp.width / 2, -tp.height / 2, tp.width, tp.height);
-      ctx.setLineDash([]);
+    ctx.save();
+    ctx.translate(tp.x + tp.width / 2, tp.y + tp.height / 2);
+    ctx.rotate((tp.rotation * Math.PI) / 180);
 
-      // Draw text preview
-      const displayText = tp.defaultText || tp.placeholder || tp.label || tp.key;
-      const fontSizeForCanvas = Math.min(tp.fontSize || 24, tp.height * 0.6, 40);
-      ctx.font = `${tp.fontWeight || 400} ${tp.fontStyle === "italic" ? "italic " : ""}${fontSizeForCanvas}px '${tp.fontFamily || "Arial"}', sans-serif`;
-      ctx.fillStyle = tp.color || "#000000";
-      ctx.textAlign = (tp.textAlign || "left") as CanvasTextAlign;
-      ctx.textBaseline = "middle";
+    ctx.fillStyle = isSelected2 ? "rgba(16,185,129,0.25)" : "rgba(16,185,129,0.08)";
+    ctx.strokeStyle = isSelected2 ? "#10b981" : "#a7f3d0";
+    ctx.lineWidth = isSelected2 ? 2 : 1;
+    ctx.setLineDash(isSelected2 ? [] : [4, 4]);
+    ctx.fillRect(-tp.width / 2, -tp.height / 2, tp.width, tp.height);
+    ctx.strokeRect(-tp.width / 2, -tp.height / 2, tp.width, tp.height);
+    ctx.setLineDash([]);
 
-      const textX = tp.textAlign === "center" ? 0 : tp.textAlign === "right" ? tp.width / 2 - 8 : -tp.width / 2 + 8;
-      ctx.fillText(displayText, textX, 0, tp.width - 16);
+    const displayText = tp.defaultText || tp.placeholder || tp.label || tp.key;
+    const fontSizeForCanvas = Math.min(tp.fontSize || 24, tp.height * 0.6, 40);
+    ctx.font = `${tp.fontWeight || 400} ${tp.fontStyle === "italic" ? "italic " : ""}${fontSizeForCanvas}px '${tp.fontFamily || "Arial"}', sans-serif`;
+    ctx.fillStyle = tp.color || "#000000";
+    ctx.textAlign = (tp.textAlign || "left") as CanvasTextAlign;
+    ctx.textBaseline = "middle";
 
-      // Draw type badge
-      ctx.font = "bold 9px sans-serif";
-      ctx.fillStyle = isSelected2 ? "#065f46" : "#6b7280";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText("Aa", -tp.width / 2 + 4, -tp.height / 2 + 4);
+    const textX = tp.textAlign === "center" ? 0 : tp.textAlign === "right" ? tp.width / 2 - 8 : -tp.width / 2 + 8;
+    ctx.fillText(displayText, textX, 0, tp.width - 16);
 
-      ctx.restore();
+    ctx.font = "bold 9px sans-serif";
+    ctx.fillStyle = isSelected2 ? "#065f46" : "#6b7280";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("Aa", -tp.width / 2 + 4, -tp.height / 2 + 4);
 
-      // Draw handles if selected
-      if (isSelected2 && !readOnly) {
-        drawHandles(ctx, tp);
-      }
-    });
+    ctx.restore();
+
+    if (isSelected2 && !readOnly) {
+      drawHandles(ctx, tp);
+    }
   }
 
   function drawHandles(ctx: CanvasRenderingContext2D, placeholder: { x: number; y: number; width: number; height: number }) {
@@ -362,10 +419,15 @@ export default function CanvasEditor({
       reader.onload = (event) => {
         const dataUrl = event.target?.result as string;
         setBackgroundImage(dataUrl);
-        emitChange(dataUrl, placeholders, textPlaceholders);
+        emitChange(dataUrl, backgroundZIndex, placeholders, textPlaceholders);
       };
       reader.readAsDataURL(file);
     }
+  }
+
+  function updateBackgroundZIndex(z: number) {
+    setBackgroundZIndex(z);
+    emitChange(backgroundImage, z, placeholders, textPlaceholders);
   }
 
   function getMousePos(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -484,11 +546,11 @@ export default function CanvasEditor({
         if (rotatingType === "image") {
           const updated = placeholders.map((p) => (p.id === rotatingId ? { ...p, rotation: Math.round(angle) } : p));
           setPlaceholders(updated);
-          emitChange(backgroundImage, updated, textPlaceholders);
+          emitChange(backgroundImage, backgroundZIndex, updated, textPlaceholders);
         } else {
           const updated = textPlaceholders.map((p) => (p.id === rotatingId ? { ...p, rotation: Math.round(angle) } : p));
           setTextPlaceholders(updated);
-          emitChange(backgroundImage, placeholders, updated);
+          emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
         }
       }
       return;
@@ -518,11 +580,11 @@ export default function CanvasEditor({
         if (isImage) {
           const updated = placeholders.map((p) => (p.id === resizingId ? { ...p, x: newX, y: newY, width: newWidth, height: newHeight } : p));
           setPlaceholders(updated);
-          emitChange(backgroundImage, updated, textPlaceholders);
+          emitChange(backgroundImage, backgroundZIndex, updated, textPlaceholders);
         } else {
           const updated = textPlaceholders.map((p) => (p.id === resizingId ? { ...p, x: newX, y: newY, width: newWidth, height: newHeight } : p));
           setTextPlaceholders(updated);
-          emitChange(backgroundImage, placeholders, updated);
+          emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
         }
       }
       return;
@@ -539,11 +601,11 @@ export default function CanvasEditor({
         if (isImage) {
           const updated = placeholders.map((p) => (p.id === draggingId ? { ...p, x: newX, y: newY } : p));
           setPlaceholders(updated);
-          emitChange(backgroundImage, updated, textPlaceholders);
+          emitChange(backgroundImage, backgroundZIndex, updated, textPlaceholders);
         } else {
           const updated = textPlaceholders.map((p) => (p.id === draggingId ? { ...p, x: newX, y: newY } : p));
           setTextPlaceholders(updated);
-          emitChange(backgroundImage, placeholders, updated);
+          emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
         }
       }
     }
@@ -591,11 +653,12 @@ export default function CanvasEditor({
       height: 150,
       rotation: 0,
       backgroundFit: "cover",
+      zIndex: DEFAULT_IMAGE_Z,
     };
     const updated = [...placeholders, newPlaceholder];
     setPlaceholders(updated);
     setSelected({ type: "image", id: newPlaceholder.id });
-    emitChange(backgroundImage, updated, textPlaceholders);
+    emitChange(backgroundImage, backgroundZIndex, updated, textPlaceholders);
   }
 
   function addTextPlaceholder() {
@@ -610,7 +673,7 @@ export default function CanvasEditor({
       height: 60,
       rotation: 0,
       opacity: 1,
-      zIndex: 1,
+      zIndex: DEFAULT_TEXT_Z,
       fontFamily: "Arial",
       fontUrl: null,
       fontFormat: null,
@@ -628,7 +691,7 @@ export default function CanvasEditor({
     const updated = [...textPlaceholders, newTp];
     setTextPlaceholders(updated);
     setSelected({ type: "text", id: newTp.id });
-    emitChange(backgroundImage, placeholders, updated);
+    emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
   }
 
   function deleteItem(type: "image" | "text", id: string) {
@@ -636,30 +699,32 @@ export default function CanvasEditor({
       const updated = placeholders.filter((p) => p.id !== id);
       setPlaceholders(updated);
       if (selected?.id === id) setSelected(null);
-      emitChange(backgroundImage, updated, textPlaceholders);
+      emitChange(backgroundImage, backgroundZIndex, updated, textPlaceholders);
     } else {
       const updated = textPlaceholders.filter((p) => p.id !== id);
       setTextPlaceholders(updated);
       if (selected?.id === id) setSelected(null);
-      emitChange(backgroundImage, placeholders, updated);
+      emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
     }
   }
 
   function updateImagePlaceholder(id: string, field: string, value: any) {
     const updated = placeholders.map((p) => (p.id === id ? { ...p, [field]: value } : p));
     setPlaceholders(updated);
-    emitChange(backgroundImage, updated, textPlaceholders);
+    emitChange(backgroundImage, backgroundZIndex, updated, textPlaceholders);
   }
 
   function updateTextPlaceholder(id: string, field: string, value: any) {
     const updated = textPlaceholders.map((p) => (p.id === id ? { ...p, [field]: value } : p));
     setTextPlaceholders(updated);
-    emitChange(backgroundImage, placeholders, updated);
+    emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
   }
 
-  function handleFontChange(tpId: string, fontFamily: string) {
-    // Check if it's a custom font from availableFonts
-    const customFont = availableFonts.find((f) => f.family === fontFamily);
+  function handleFontChange(tpId: string, selectedValue: string) {
+    // Look up by fileUrl, not family — family is no longer unique on its
+    // own now that a family can have several weight/style variants.
+    const customFont = availableFonts.find((f) => f.fileUrl === selectedValue);
+
     if (customFont) {
       const updated = textPlaceholders.map((p) =>
         p.id === tpId
@@ -674,16 +739,14 @@ export default function CanvasEditor({
           : p
       );
       setTextPlaceholders(updated);
-      emitChange(backgroundImage, placeholders, updated);
+      emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
     } else {
-      // System font
+      // System font — selectedValue is the plain family name.
       const updated = textPlaceholders.map((p) =>
-        p.id === tpId
-          ? { ...p, fontFamily, fontUrl: null, fontFormat: null }
-          : p
+        p.id === tpId ? { ...p, fontFamily: selectedValue, fontUrl: null, fontFormat: null } : p
       );
       setTextPlaceholders(updated);
-      emitChange(backgroundImage, placeholders, updated);
+      emitChange(backgroundImage, backgroundZIndex, placeholders, updated);
     }
   }
 
@@ -731,6 +794,27 @@ export default function CanvasEditor({
             </button>
             <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleBackgroundUpload} className="hidden" />
           </div>
+
+          {/* Background layer control — lets the frame sit in front of or
+              behind image/text placeholders instead of being locked to
+              the middle. */}
+          {backgroundImage && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className={labelSmall} style={{ color: "var(--bw-ghost)", marginBottom: 0 }}>
+                Background layer (z-index)
+              </span>
+              <input
+                type="number"
+                value={backgroundZIndex}
+                onChange={(e) => updateBackgroundZIndex(parseInt(e.target.value, 10) || 0)}
+                className={inputCls}
+                style={{ width: 80 }}
+              />
+              <span className="text-[10px]" style={{ color: "var(--bw-ghost)" }}>
+                Higher = more in front. Images default to 1, text defaults to 3.
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -845,6 +929,47 @@ export default function CanvasEditor({
                   </select>
                 </div>
 
+                {/* Layer control */}
+                <div className="pt-2 border-t" style={{ borderColor: "var(--bw-divider)" }}>
+                  <label className={labelSmall} style={{ color: "var(--bw-ghost)" }}>
+                    Layer (z-index): {selectedImagePlaceholder.zIndex}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={selectedImagePlaceholder.zIndex}
+                      onChange={(e) => updateImagePlaceholder(selectedImagePlaceholder.id, "zIndex", parseInt(e.target.value, 10) || 0)}
+                      className={inputCls}
+                      disabled={readOnly}
+                    />
+                    {!readOnly && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => updateImagePlaceholder(selectedImagePlaceholder.id, "zIndex", selectedImagePlaceholder.zIndex + 1)}
+                          className="px-2 py-1.5 text-xs font-semibold rounded-[var(--bw-radius-md)] border"
+                          style={{ borderColor: "var(--bw-border)" }}
+                          title="Bring forward"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateImagePlaceholder(selectedImagePlaceholder.id, "zIndex", selectedImagePlaceholder.zIndex - 1)}
+                          className="px-2 py-1.5 text-xs font-semibold rounded-[var(--bw-radius-md)] border"
+                          style={{ borderColor: "var(--bw-border)" }}
+                          title="Send backward"
+                        >
+                          ▼
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-[10px] mt-1" style={{ color: "var(--bw-ghost)" }}>
+                    Higher number renders in front. Compare against the background layer ({backgroundZIndex}) and text zones.
+                  </p>
+                </div>
+
                 {!readOnly && (
                   <button onClick={() => deleteItem("image", selectedImagePlaceholder.id)} className="w-full px-3 py-1.5 text-xs font-semibold rounded-[var(--bw-radius-md)] border-none transition-all cursor-pointer" style={{ background: "rgba(220,38,38,0.15)", color: "rgb(220,38,38)" }}>
                     🗑️ Delete
@@ -902,6 +1027,47 @@ export default function CanvasEditor({
                   <input type="range" min="0" max="360" value={selectedTextPlaceholder.rotation} onChange={(e) => updateTextPlaceholder(selectedTextPlaceholder.id, "rotation", parseInt(e.target.value, 10))} className="w-full" disabled={readOnly} />
                 </div>
 
+                {/* Layer control */}
+                <div className="pt-2 border-t" style={{ borderColor: "var(--bw-divider)" }}>
+                  <label className={labelSmall} style={{ color: "var(--bw-ghost)" }}>
+                    Layer (z-index): {selectedTextPlaceholder.zIndex}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={selectedTextPlaceholder.zIndex}
+                      onChange={(e) => updateTextPlaceholder(selectedTextPlaceholder.id, "zIndex", parseInt(e.target.value, 10) || 0)}
+                      className={inputCls}
+                      disabled={readOnly}
+                    />
+                    {!readOnly && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => updateTextPlaceholder(selectedTextPlaceholder.id, "zIndex", selectedTextPlaceholder.zIndex + 1)}
+                          className="px-2 py-1.5 text-xs font-semibold rounded-[var(--bw-radius-md)] border"
+                          style={{ borderColor: "var(--bw-border)" }}
+                          title="Bring forward"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateTextPlaceholder(selectedTextPlaceholder.id, "zIndex", selectedTextPlaceholder.zIndex - 1)}
+                          className="px-2 py-1.5 text-xs font-semibold rounded-[var(--bw-radius-md)] border"
+                          style={{ borderColor: "var(--bw-border)" }}
+                          title="Send backward"
+                        >
+                          ▼
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-[10px] mt-1" style={{ color: "var(--bw-ghost)" }}>
+                    Higher number renders in front. Compare against the background layer ({backgroundZIndex}) and image zones.
+                  </p>
+                </div>
+
                 {/* Typography */}
                 <div className="pt-2 border-t" style={{ borderColor: "var(--bw-divider)" }}>
                   <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--bw-ghost)" }}>Typography</p>
@@ -910,7 +1076,7 @@ export default function CanvasEditor({
                 <div>
                   <label className={labelSmall} style={{ color: "var(--bw-ghost)" }}>Font</label>
                   <select
-                    value={selectedTextPlaceholder.fontFamily}
+                    value={selectedTextPlaceholder.fontUrl || selectedTextPlaceholder.fontFamily}
                     onChange={(e) => handleFontChange(selectedTextPlaceholder.id, e.target.value)}
                     className={`${inputCls} cursor-pointer`}
                     disabled={readOnly}
@@ -923,7 +1089,9 @@ export default function CanvasEditor({
                     {availableFonts.length > 0 && (
                       <optgroup label="Custom Fonts">
                         {availableFonts.map((f) => (
-                          <option key={f._id} value={f.family}>{f.name}</option>
+                          <option key={f._id} value={f.fileUrl}>
+                            {f.name} · {f.weight}{f.style === "italic" ? " italic" : ""}
+                          </option>
                         ))}
                       </optgroup>
                     )}
@@ -1037,34 +1205,44 @@ export default function CanvasEditor({
               </h4>
 
               <div className="space-y-1.5">
-                {allItems.map((item) => (
-                  <button
-                    key={`${item._type}-${item.id}`}
-                    onClick={() => setSelected({ type: item._type, id: item.id })}
-                    className="w-full text-left rounded-[var(--bw-radius-md)] p-2.5 border transition-all text-xs"
-                    style={{
-                      background: selected?.id === item.id && selected?.type === item._type ? "var(--bw-bg)" : "transparent",
-                      borderColor: selected?.id === item.id && selected?.type === item._type ? "var(--bw-ink)" : "var(--bw-border)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{
-                        background: item._type === "image" ? "rgba(59,130,246,0.1)" : "rgba(139,92,246,0.1)",
-                        color: item._type === "image" ? "#3b82f6" : "#8b5cf6",
-                      }}>
-                        {item._type === "image" ? "🖼️" : "Aa"}
-                      </span>
-                      <div>
-                        <p className="font-semibold">{item.label}</p>
-                        <code className="text-[10px]" style={{ color: "var(--bw-muted)", fontFamily: "var(--bw-font-mono)" }}>
-                          {item.key}
-                        </code>
+                {[...allItems]
+                  .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))
+                  .map((item) => (
+                    <button
+                      key={`${item._type}-${item.id}`}
+                      onClick={() => setSelected({ type: item._type, id: item.id })}
+                      className="w-full text-left rounded-[var(--bw-radius-md)] p-2.5 border transition-all text-xs"
+                      style={{
+                        background: selected?.id === item.id && selected?.type === item._type ? "var(--bw-bg)" : "transparent",
+                        borderColor: selected?.id === item.id && selected?.type === item._type ? "var(--bw-ink)" : "var(--bw-border)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{
+                            background: item._type === "image" ? "rgba(59,130,246,0.1)" : "rgba(139,92,246,0.1)",
+                            color: item._type === "image" ? "#3b82f6" : "#8b5cf6",
+                          }}>
+                            {item._type === "image" ? "🖼️" : "Aa"}
+                          </span>
+                          <div>
+                            <p className="font-semibold">{item.label}</p>
+                            <code className="text-[10px]" style={{ color: "var(--bw-muted)", fontFamily: "var(--bw-font-mono)" }}>
+                              {item.key}
+                            </code>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold" style={{ color: "var(--bw-ghost)" }}>
+                          z:{item.zIndex ?? 0}
+                        </span>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))}
               </div>
+              <p className="text-[10px] mt-2" style={{ color: "var(--bw-ghost)" }}>
+                Listed top-to-front. Background layer is currently z:{backgroundZIndex}.
+              </p>
             </div>
           )}
         </div>

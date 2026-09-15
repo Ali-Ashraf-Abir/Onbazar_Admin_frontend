@@ -436,6 +436,7 @@ export default function AdminTemplateDetailPage() {
                 </h2>
                 <CanvasEditor
                   backgroundImage={template?.canvas?.backgroundImage || ""}
+                  backgroundZIndex={template?.canvas?.zIndex ?? 2}
                   placeholders={template?.imagePlaceholders || []}
                   textPlaceholders={template?.textPlaceholders || []}
                   readOnly={true}

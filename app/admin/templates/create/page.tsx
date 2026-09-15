@@ -15,6 +15,8 @@ interface Field {
   defaultValue: string;
 }
 
+
+
 export default function AdminCreateTemplatePage() {
   const router = useRouter();
 
@@ -44,10 +46,12 @@ export default function AdminCreateTemplatePage() {
   const [testImages, setTestImages] = useState<Record<string, string>>({});
   const [canvasData, setCanvasData] = useState<{
     backgroundImage: string;
+    backgroundZIndex: number;
     imagePlaceholders: CanvasPlaceholder[];
     textPlaceholders: CanvasTextPlaceholder[];
   }>({
     backgroundImage: "",
+    backgroundZIndex: 2,
     imagePlaceholders: [],
     textPlaceholders: [],
   });
@@ -603,6 +607,7 @@ export default function AdminCreateTemplatePage() {
             {templateType === "canvas" && (
               <CanvasEditor
                 backgroundImage={canvasData.backgroundImage}
+                backgroundZIndex={canvasData.backgroundZIndex}
                 placeholders={canvasData.imagePlaceholders}
                 textPlaceholders={canvasData.textPlaceholders}
                 availableFonts={availableFonts}
