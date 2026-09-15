@@ -82,10 +82,12 @@ export default function AdminFontsPage() {
       setError("Choose a font file (.woff2, .woff, .ttf, or .otf)");
       return;
     }
+
     if (!form.name.trim()) {
       setError("Font name is required");
       return;
     }
+
     if (!/^[a-z0-9-]+$/.test(form.family)) {
       setError("Family must be lowercase letters, numbers, and hyphens only");
       return;
@@ -94,15 +96,13 @@ export default function AdminFontsPage() {
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", file, file.name);
       fd.append("name", form.name.trim());
       fd.append("family", form.family.trim());
       fd.append("weight", String(form.weight));
       fd.append("style", form.style);
 
-      await api.post("/fonts", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await api.upload("/fonts", fd);
 
       setSuccess("Font uploaded successfully");
       setForm({ name: "", family: "", weight: 400, style: "normal" });
