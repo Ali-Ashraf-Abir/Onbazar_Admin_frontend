@@ -63,7 +63,7 @@ export default function AdminUserMagazinesPage() {
       const token = getAccessToken();
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000/api"}/admin/user-magazines/${id}/pdf`,
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/admin/user-magazines/${id}/pdf`,
         {
           credentials: "include",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
