@@ -129,6 +129,17 @@ const moreRoutes = [
     ),
   },
   {
+    path: "/admin/fonts",
+    label: "fonts",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="3" y1="9" x2="21" y2="9" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+      </svg>
+    ),
+  },
+  {
     path: "/admin/map",
     label: "Map",
     icon: (
@@ -472,8 +483,8 @@ export default function AdminNavbar() {
                     href={r.path}
                     onClick={() => setMenuOpen(false)}
                     className={`${mobileNavBase} ${active
-                        ? "font-semibold"
-                        : "text-[rgba(250,250,250,0.55)] hover:text-[var(--bw-bg)] hover:bg-[rgba(250,250,250,0.06)]"
+                      ? "font-semibold"
+                      : "text-[rgba(250,250,250,0.55)] hover:text-[var(--bw-bg)] hover:bg-[rgba(250,250,250,0.06)]"
                       }`}
                     style={active ? { color: "var(--bw-ink)", background: "var(--bw-ghost)" } : {}}
                   >
@@ -506,8 +517,8 @@ export default function AdminNavbar() {
                     href={r.path}
                     onClick={() => setMenuOpen(false)}
                     className={`${mobileNavBase} ${active
-                        ? "font-semibold"
-                        : "text-[rgba(250,250,250,0.55)] hover:text-[var(--bw-bg)] hover:bg-[rgba(250,250,250,0.06)]"
+                      ? "font-semibold"
+                      : "text-[rgba(250,250,250,0.55)] hover:text-[var(--bw-bg)] hover:bg-[rgba(250,250,250,0.06)]"
                       }`}
                     style={active ? { color: "var(--bw-ink)", background: "var(--bw-ghost)" } : {}}
                   >
