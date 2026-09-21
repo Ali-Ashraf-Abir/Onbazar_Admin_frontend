@@ -137,10 +137,84 @@ async function upload<T = unknown>(
     return parseResponse<T>(response);
 }
 
+async function getBlob(endpoint: string): Promise<Blob> {
+    let response = await rawFetch(endpoint, { method: "GET" });
+
+    const isAuthEndpoint = endpoint.startsWith("/auth/");
+
+    if (response.status === 401 && !isAuthEndpoint) {
+        if (!isRefreshing) {
+            isRefreshing = true;
+            try {
+                const res = await rawFetch("/auth/refresh", { method: "POST" });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error("Refresh failed");
+
+                const newToken = data.accessToken as string;
+                setAccessToken(newToken);
+                notifySubscribers(newToken);
+            } catch {
+                clearAccessToken();
+                notifySubscribers(null);
+
+                if (typeof window !== "undefined") {
+                    window.location.href = "/login";
+                }
+
+                throw new ApiError(
+                    "Session expired. Please log in again.",
+                    401,
+                    null
+                );
+            } finally {
+                isRefreshing = false;
+            }
+        }
+
+        const retryToken = await new Promise<string | null>((resolve) => {
+            subscribeToRefresh(resolve);
+        });
+
+        if (!retryToken) {
+            throw new ApiError("Session expired", 401, null);
+        }
+
+        response = await rawFetch(endpoint, { method: "GET" });
+    }
+
+    if (!response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+
+        let data: unknown;
+
+        if (contentType.includes("application/json")) {
+            data = await response.json().catch(() => null);
+        } else {
+            data = await response.text().catch(() => null);
+        }
+
+        const message =
+            typeof data === "object" &&
+            data !== null &&
+            "message" in data
+                ? String((data as Record<string, unknown>).message)
+                : `HTTP ${response.status}`;
+
+        throw new ApiError(message, response.status, data);
+    }
+
+    return response.blob();
+}
+
 /* ── public API ─────────────────────────────────────────────────────── */
 const api = {
     get: <T = unknown>(endpoint: string, options?: RequestOptions) =>
         request<T>(endpoint, { ...options, method: "GET" }),
+
+    getBlob: (endpoint: string) =>
+        getBlob(endpoint),
+
     put: <T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions) =>
         request<T>(endpoint, { ...options, method: "PUT", body }),
 

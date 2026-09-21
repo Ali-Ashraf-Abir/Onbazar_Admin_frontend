@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import RefundModal from "../../../../components/admin-order/RefundModal";
 import api, { ApiError } from "@/lib/api";
+import { downloadGiftCardPdf } from "@/lib/giftCardApi";
 
 const STATUS_OPTIONS = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"];
 const REFUND_STATUSES = new Set(["cancelled", "refunded"]);
@@ -51,7 +52,7 @@ export default function AdminOrderDetailPage() {
   // ── Refund modal ──────────────────────────────────────
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
-
+  const [pdfLoadingIdx, setPdfLoadingIdx] = useState<number | null>(null);
   const loadOrder = useCallback(async () => {
     if (!id) return;
     try {
@@ -69,7 +70,16 @@ export default function AdminOrderDetailPage() {
   }, [id]);
 
   useEffect(() => { loadOrder(); }, [loadOrder]);
-
+  async function handleGiftCardPdf(itemIndex: number) {
+    setPdfLoadingIdx(itemIndex);
+    try {
+      await downloadGiftCardPdf(id, itemIndex, `giftcard-${order.orderNumber}-${itemIndex + 1}.pdf`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "PDF download failed");
+    } finally {
+      setPdfLoadingIdx(null);
+    }
+  }
   // Selecting "refunded" or "cancelled" opens the modal instead of
   // saving directly — the modal handles the PATCH with the refund amount.
   function handleStatusChange(next: string) {
@@ -366,414 +376,424 @@ export default function AdminOrderDetailPage() {
                           && ri.size === item.size
                         );
                         const isMap = item.itemType === "map";
-
+                        const isGiftCard = item.itemType === "giftCard";
                         return (
-                    <tr
-                      key={i}
-                      style={{
-                        borderTop: "1px solid var(--bw-divider)",
-                        background: refundedItem ? "rgba(239,68,68,0.03)" : undefined,
-                      }}
-                    >
-                      <td className="py-3 pr-3">
-                        <div className="relative">
-                          {item.snapshot?.imageUrl ? (
-                            <img
-                              src={item.snapshot.imageUrl} alt=""
-                              className="w-10 h-10 rounded-[var(--bw-radius-sm)] object-cover block flex-shrink-0"
-                              style={{ background: "var(--bw-surface-alt)" }}
-                            />
-                          ) : (
-                            <div
-                              className="w-10 h-10 rounded-[var(--bw-radius-sm)] flex items-center justify-center text-base opacity-30"
-                              style={{ background: "var(--bw-surface-alt)" }}
-                            >📷</div>
-                          )}
-                          {refundedItem && (
-                            <div
-                              className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-                              style={{ background: "#dc2626" }}
-                              title={`${refundedItem.quantity} refunded`}
-                            >↩</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2.5">
-                        <div className="text-[13px] font-semibold" style={{ color: "var(--bw-ink)" }}>{item.snapshot?.name}</div>
-                        {item.size && <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-muted)" }}>Size: {item.size}</div>}
-
-                        {isMap && item.mapCustomization && (
-                          <div className="mt-1 text-[11px]" style={{ color: "var(--bw-muted)" }}>
-                            <div>"{item.mapCustomization.title}"</div>
-                            <div style={{ fontFamily: "var(--bw-font-mono)" }}>
-                              {item.mapCustomization.lat?.toFixed(4)}, {item.mapCustomization.lng?.toFixed(4)}
-                              {" · "}{item.mapCustomization.icon}
-                              {item.mapCustomization.zoom != null ? ` · zoom ${item.mapCustomization.zoom}` : ""}
-                            </div>
-                          </div>
-                        )}
-
-                            {isMap && item.snapshot?.imageUrl && (
-                            <a
-                              href={toCloudinaryDownloadUrl(
-                                item.snapshot.imageUrl,
-                                `${order.orderNumber}-map-poster-${i + 1}`
-                              )}
-                              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-[var(--bw-radius-sm)] transition-opacity hover:opacity-70"
-                              style={{ background: "rgba(59,130,246,0.10)", color: "#2563eb" }}
-                            >
-                              ⬇ Download Poster
-                            </a>
-                          )}
-
-                        {item.snapshot?.discount?.type && (
-                          <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-red)" }}>
-                            {item.snapshot.discount.type === "percentage"
-                              ? `${item.snapshot.discount.value}% OFF applied`
-                              : `৳${item.snapshot.discount.value} OFF applied`}
-                          </div>
-                        )}
-                        {item.snapshot?.unitCost != null && (
-                          <div className="text-[10px] mt-0.5 italic" style={{ color: "var(--bw-ghost)" }}>
-                            Cost: {fmt(item.snapshot.unitCost, cur)}/unit
-                          </div>
-                        )}
-                        {refundedItem && (
-                          <div className="text-[11px] mt-0.5 font-semibold" style={{ color: "#dc2626" }}>
-                            ↩ {refundedItem.quantity} of {item.quantity} refunded
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 px-2.5 text-right">
-                        <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{item.quantity}</span>
-                      </td>
-                      <td className="py-3 px-2.5 text-right">
-                        <div className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>
-                          {fmt(item.snapshot?.effectiveUnitPrice, cur)}
-                        </div>
-                        {item.snapshot?.unitPrice !== item.snapshot?.effectiveUnitPrice && (
-                          <div className="text-[10px] line-through" style={{ color: "var(--bw-ghost)" }}>
-                            {fmt(item.snapshot?.unitPrice, cur)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 px-2.5 text-right">
-                        <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--bw-ink)" }}>{fmt(item.subtotal, cur)}</span>
-                      </td>
-                    </tr>
-                    );
-                      })}
-                  </tbody>
-                </table>
-
-                {/* Add-ons */}
-                {order.addons?.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-3 my-5">
-                      <div className="flex-1 h-px" style={{ background: "var(--bw-border)" }} />
-                      <div className="text-[11px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: "var(--bw-ghost)" }}>Add-ons</div>
-                      <div className="flex-1 h-px" style={{ background: "var(--bw-border)" }} />
-                    </div>
-                    <table className="w-full border-collapse">
-                      <tbody>
-                        {order.addons.map((a: any, i: number) => (
-                          <tr key={i} style={{ borderTop: "1px solid var(--bw-divider)" }}>
+                          <tr
+                            key={i}
+                            style={{
+                              borderTop: "1px solid var(--bw-divider)",
+                              background: refundedItem ? "rgba(239,68,68,0.03)" : undefined,
+                            }}
+                          >
                             <td className="py-3 pr-3">
-                              {a.snapshot?.imageUrl ? (
-                                <img src={a.snapshot.imageUrl} alt="" className="w-10 h-10 rounded-[var(--bw-radius-sm)] object-cover block" style={{ background: "var(--bw-surface-alt)" }} />
-                              ) : (
-                                <div className="w-10 h-10 rounded-[var(--bw-radius-sm)] flex items-center justify-center text-base opacity-30" style={{ background: "var(--bw-surface-alt)" }}>🎁</div>
-                              )}
+                              <div className="relative">
+                                {item.snapshot?.imageUrl ? (
+                                  <img
+                                    src={item.snapshot.imageUrl} alt=""
+                                    className="w-10 h-10 rounded-[var(--bw-radius-sm)] object-cover block flex-shrink-0"
+                                    style={{ background: "var(--bw-surface-alt)" }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-10 h-10 rounded-[var(--bw-radius-sm)] flex items-center justify-center text-base opacity-30"
+                                    style={{ background: "var(--bw-surface-alt)" }}
+                                  >📷</div>
+                                )}
+                                {refundedItem && (
+                                  <div
+                                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                                    style={{ background: "#dc2626" }}
+                                    title={`${refundedItem.quantity} refunded`}
+                                  >↩</div>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3 px-2.5">
-                              <div className="text-[13px] font-semibold" style={{ color: "var(--bw-ink)" }}>{a.snapshot?.name}</div>
-                              {a.customerNote && (
-                                <div
-                                  className="mt-1 text-[11px] italic px-2 py-1 rounded-[var(--bw-radius-sm)]"
-                                  style={{ color: "var(--bw-ink-secondary)", background: "var(--bw-bg-alt)", border: "1px solid var(--bw-border)" }}
+                              <div className="text-[13px] font-semibold" style={{ color: "var(--bw-ink)" }}>{item.snapshot?.name}</div>
+                              {item.size && <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-muted)" }}>Size: {item.size}</div>}
+
+                              {isMap && item.mapCustomization && (
+                                <div className="mt-1 text-[11px]" style={{ color: "var(--bw-muted)" }}>
+                                  <div>"{item.mapCustomization.title}"</div>
+                                  <div style={{ fontFamily: "var(--bw-font-mono)" }}>
+                                    {item.mapCustomization.lat?.toFixed(4)}, {item.mapCustomization.lng?.toFixed(4)}
+                                    {" · "}{item.mapCustomization.icon}
+                                    {item.mapCustomization.zoom != null ? ` · zoom ${item.mapCustomization.zoom}` : ""}
+                                  </div>
+                                </div>
+                              )}
+
+                              {isMap && item.snapshot?.imageUrl && (
+                                <a
+                                  href={toCloudinaryDownloadUrl(
+                                    item.snapshot.imageUrl,
+                                    `${order.orderNumber}-map-poster-${i + 1}`
+                                  )}
+                                  className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-[var(--bw-radius-sm)] transition-opacity hover:opacity-70"
+                                  style={{ background: "rgba(59,130,246,0.10)", color: "#2563eb" }}
                                 >
-                                  "{a.customerNote}"
+                                  ⬇ Download Poster
+                                </a>
+                              )}
+                              {isGiftCard && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleGiftCardPdf(i)}
+                                  disabled={pdfLoadingIdx === i}
+                                  className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-[var(--bw-radius-sm)] transition-opacity hover:opacity-70 disabled:opacity-50 cursor-pointer"
+                                  style={{ background: "rgba(59,130,246,0.10)", color: "#2563eb", border: "none" }}
+                                >
+                                  {pdfLoadingIdx === i ? "Preparing PDF…" : "⬇ Download PDF"}
+                                </button>
+                              )}
+                              {item.snapshot?.discount?.type && (
+                                <div className="text-[11px] mt-0.5" style={{ color: "var(--bw-red)" }}>
+                                  {item.snapshot.discount.type === "percentage"
+                                    ? `${item.snapshot.discount.value}% OFF applied`
+                                    : `৳${item.snapshot.discount.value} OFF applied`}
+                                </div>
+                              )}
+                              {item.snapshot?.unitCost != null && (
+                                <div className="text-[10px] mt-0.5 italic" style={{ color: "var(--bw-ghost)" }}>
+                                  Cost: {fmt(item.snapshot.unitCost, cur)}/unit
+                                </div>
+                              )}
+                              {refundedItem && (
+                                <div className="text-[11px] mt-0.5 font-semibold" style={{ color: "#dc2626" }}>
+                                  ↩ {refundedItem.quantity} of {item.quantity} refunded
                                 </div>
                               )}
                             </td>
                             <td className="py-3 px-2.5 text-right">
-                              <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{a.quantity}</span>
+                              <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{item.quantity}</span>
                             </td>
                             <td className="py-3 px-2.5 text-right">
-                              <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{fmt(a.snapshot?.unitPrice, cur)}</span>
+                              <div className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>
+                                {fmt(item.snapshot?.effectiveUnitPrice, cur)}
+                              </div>
+                              {item.snapshot?.unitPrice !== item.snapshot?.effectiveUnitPrice && (
+                                <div className="text-[10px] line-through" style={{ color: "var(--bw-ghost)" }}>
+                                  {fmt(item.snapshot?.unitPrice, cur)}
+                                </div>
+                              )}
                             </td>
                             <td className="py-3 px-2.5 text-right">
-                              <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--bw-ink)" }}>{fmt(a.subtotal, cur)}</span>
+                              <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--bw-ink)" }}>{fmt(item.subtotal, cur)}</span>
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
-                )}
+                        );
+                      })}
+                    </tbody>
+                  </table>
 
-                {/* Totals */}
-                <div className="mt-4 pt-4" style={{ borderTop: "2px solid var(--bw-border)" }}>
-                  {[
-                    { label: "Items Subtotal", value: fmt(order.pricing?.itemsSubtotal, cur), show: true },
-                    { label: "Add-ons Subtotal", value: fmt(order.pricing?.addonsSubtotal, cur), show: (order.pricing?.addonsSubtotal ?? 0) > 0 },
-                    { label: "Delivery Charge", value: delivery != null ? fmt(delivery, cur) : "Not set", show: delivery != null },
-                  ].filter(r => r.show).map(({ label, value }) => (
-                    <div key={label} className="flex justify-between text-[13px] py-1">
-                      <span style={{ color: "var(--bw-muted)" }}>{label}</span>
-                      <span className="font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{value}</span>
-                    </div>
-                  ))}
-                  {order.promo?.discountAmount ? (
-                    <div className="flex justify-between text-[13px] mt-2 pt-3" style={{ color: "var(--bw-muted)" }}>
-                      <span>Promo Discount</span>
-                      <span className="tabular-nums font-bold" style={{ color: "var(--bw-ink)" }}>-{fmt(order.promo?.discountAmount, cur)}</span>
-                    </div>
-                  ) : null}
-                  <div
-                    className="flex justify-between text-[16px] font-bold mt-2 pt-3"
-                    style={{ borderTop: "1px solid var(--bw-border)", color: "var(--bw-ink)" }}
-                  >
-                    <span>Grand Total</span>
-                    {order.pricing?.grandTotal
-                      ? <span className="tabular-nums">{fmt(order.pricing?.grandTotal, cur)}</span>
-                      : <span className="tabular-nums">{fmt(order.pricing?.subtotal, cur)}</span>
-                    }
-                  </div>
-                  {order.refund?.refundedAmount != null && (
+                  {/* Add-ons */}
+                  {order.addons?.length > 0 && (
                     <>
-                      <div className="flex justify-between text-[13px] py-1 mt-1">
-                        <span style={{ color: "#dc2626" }}>Refunded</span>
-                        <span className="font-semibold tabular-nums" style={{ color: "#dc2626" }}>
-                          −{fmt(order.refund.refundedAmount, cur)}
-                        </span>
+                      <div className="flex items-center gap-3 my-5">
+                        <div className="flex-1 h-px" style={{ background: "var(--bw-border)" }} />
+                        <div className="text-[11px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: "var(--bw-ghost)" }}>Add-ons</div>
+                        <div className="flex-1 h-px" style={{ background: "var(--bw-border)" }} />
                       </div>
-                      <div
-                        className="flex justify-between text-[15px] font-bold mt-1 pt-2"
-                        style={{ borderTop: "1px dashed var(--bw-border)", color: "var(--bw-ink)" }}
-                      >
-                        <span>Net Collected</span>
-                        <span className="tabular-nums" style={{ color: "var(--bw-green)" }}>
-                          {fmt((order.pricing?.subtotal ?? 0) - order.refund.refundedAmount, cur)}
-                        </span>
-                      </div>
+                      <table className="w-full border-collapse">
+                        <tbody>
+                          {order.addons.map((a: any, i: number) => (
+                            <tr key={i} style={{ borderTop: "1px solid var(--bw-divider)" }}>
+                              <td className="py-3 pr-3">
+                                {a.snapshot?.imageUrl ? (
+                                  <img src={a.snapshot.imageUrl} alt="" className="w-10 h-10 rounded-[var(--bw-radius-sm)] object-cover block" style={{ background: "var(--bw-surface-alt)" }} />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-[var(--bw-radius-sm)] flex items-center justify-center text-base opacity-30" style={{ background: "var(--bw-surface-alt)" }}>🎁</div>
+                                )}
+                              </td>
+                              <td className="py-3 px-2.5">
+                                <div className="text-[13px] font-semibold" style={{ color: "var(--bw-ink)" }}>{a.snapshot?.name}</div>
+                                {a.customerNote && (
+                                  <div
+                                    className="mt-1 text-[11px] italic px-2 py-1 rounded-[var(--bw-radius-sm)]"
+                                    style={{ color: "var(--bw-ink-secondary)", background: "var(--bw-bg-alt)", border: "1px solid var(--bw-border)" }}
+                                  >
+                                    "{a.customerNote}"
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-2.5 text-right">
+                                <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{a.quantity}</span>
+                              </td>
+                              <td className="py-3 px-2.5 text-right">
+                                <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{fmt(a.snapshot?.unitPrice, cur)}</span>
+                              </td>
+                              <td className="py-3 px-2.5 text-right">
+                                <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--bw-ink)" }}>{fmt(a.subtotal, cur)}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </>
                   )}
-                </div>
-            </div>
-          </SectionCard>
 
-          {/* Delivery card */}
-          <SectionCard>
-            <CardHeader icon="🚚" title="Delivery" />
-            <div className="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
-              {[
-                ["Name", order.delivery?.fullName],
-                ["Phone", order.delivery?.phone],
-                ["Email", order.delivery?.email],
-                ["Zilla", order.delivery?.zilla],
-                ["Thana", order.delivery?.thana],
-                ["Country", order.delivery?.country || "Bangladesh"],
-                ["Address", order.delivery?.address],
-                order.delivery?.note ? ["Note", order.delivery.note] : null,
-              ].filter(Boolean).map(([label, val]: any) => (
-                <InfoRow key={label} label={label} value={val} />
-              ))}
-            </div>
-          </SectionCard>
-
-          {/* Billing card */}
-          <SectionCard>
-            <CardHeader
-              icon="🧾"
-              title="Billing"
-              right={order.billing?.sameAsDelivery && (
-                <span className="text-[11px] font-semibold" style={{ color: "var(--bw-muted)" }}>Same as delivery</span>
-              )}
-            />
-            <div className="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
-              <InfoRow label="Name" value={order.billing?.fullName} />
-              <InfoRow label="Email" value={order.billing?.email} />
-              <InfoRow label="Phone" value={order.billing?.phone} />
-            </div>
-          </SectionCard>
-        </div>
-
-        {/* ══ RIGHT SIDEBAR ══ */}
-        <div className="flex flex-col gap-4">
-
-          {/* Payment */}
-          <SectionCard>
-            <CardHeader icon="💳" title="Payment" right={<Badge bg={pm.bg} color={pm.color}>{order.payment?.method}</Badge>} />
-            <div className="px-5 py-4">
-              {order.payment?.method === "Bkash" && (
-                <div className="flex flex-col gap-3 mb-4">
-                  <InfoRow label="Bkash Phone" value={order.payment.bkash?.customerPhone} />
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--bw-ghost)" }}>Transaction ID</div>
-                    <div className="text-[13px] font-medium" style={{ fontFamily: "var(--bw-font-mono)", color: "var(--bw-ink)" }}>
-                      {order.payment.bkash?.transactionId}
+                  {/* Totals */}
+                  <div className="mt-4 pt-4" style={{ borderTop: "2px solid var(--bw-border)" }}>
+                    {[
+                      { label: "Items Subtotal", value: fmt(order.pricing?.itemsSubtotal, cur), show: true },
+                      { label: "Add-ons Subtotal", value: fmt(order.pricing?.addonsSubtotal, cur), show: (order.pricing?.addonsSubtotal ?? 0) > 0 },
+                      { label: "Delivery Charge", value: delivery != null ? fmt(delivery, cur) : "Not set", show: delivery != null },
+                    ].filter(r => r.show).map(({ label, value }) => (
+                      <div key={label} className="flex justify-between text-[13px] py-1">
+                        <span style={{ color: "var(--bw-muted)" }}>{label}</span>
+                        <span className="font-semibold tabular-nums" style={{ color: "var(--bw-ink)" }}>{value}</span>
+                      </div>
+                    ))}
+                    {order.promo?.discountAmount ? (
+                      <div className="flex justify-between text-[13px] mt-2 pt-3" style={{ color: "var(--bw-muted)" }}>
+                        <span>Promo Discount</span>
+                        <span className="tabular-nums font-bold" style={{ color: "var(--bw-ink)" }}>-{fmt(order.promo?.discountAmount, cur)}</span>
+                      </div>
+                    ) : null}
+                    <div
+                      className="flex justify-between text-[16px] font-bold mt-2 pt-3"
+                      style={{ borderTop: "1px solid var(--bw-border)", color: "var(--bw-ink)" }}
+                    >
+                      <span>Grand Total</span>
+                      {order.pricing?.grandTotal
+                        ? <span className="tabular-nums">{fmt(order.pricing?.grandTotal, cur)}</span>
+                        : <span className="tabular-nums">{fmt(order.pricing?.subtotal, cur)}</span>
+                      }
                     </div>
+                    {order.refund?.refundedAmount != null && (
+                      <>
+                        <div className="flex justify-between text-[13px] py-1 mt-1">
+                          <span style={{ color: "#dc2626" }}>Refunded</span>
+                          <span className="font-semibold tabular-nums" style={{ color: "#dc2626" }}>
+                            −{fmt(order.refund.refundedAmount, cur)}
+                          </span>
+                        </div>
+                        <div
+                          className="flex justify-between text-[15px] font-bold mt-1 pt-2"
+                          style={{ borderTop: "1px dashed var(--bw-border)", color: "var(--bw-ink)" }}
+                        >
+                          <span>Net Collected</span>
+                          <span className="tabular-nums" style={{ color: "var(--bw-green)" }}>
+                            {fmt((order.pricing?.subtotal ?? 0) - order.refund.refundedAmount, cur)}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-              )}
-              {order.payment?.method === "COD" && (
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <div className="relative flex-shrink-0">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={codConfirm}
-                      onChange={e => setCodConfirm(e.target.checked)}
-                    />
-                    <div
-                      className="w-10 h-6 rounded-full transition-colors duration-200 peer-checked:bg-[var(--bw-green)]"
-                      style={{ background: codConfirm ? undefined : "var(--bw-border)" }}
-                    />
-                    <div
-                      className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform duration-200 shadow-sm"
+              </SectionCard>
+
+              {/* Delivery card */}
+              <SectionCard>
+                <CardHeader icon="🚚" title="Delivery" />
+                <div className="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
+                  {[
+                    ["Name", order.delivery?.fullName],
+                    ["Phone", order.delivery?.phone],
+                    ["Email", order.delivery?.email],
+                    ["Zilla", order.delivery?.zilla],
+                    ["Thana", order.delivery?.thana],
+                    ["Country", order.delivery?.country || "Bangladesh"],
+                    ["Address", order.delivery?.address],
+                    order.delivery?.note ? ["Note", order.delivery.note] : null,
+                  ].filter(Boolean).map(([label, val]: any) => (
+                    <InfoRow key={label} label={label} value={val} />
+                  ))}
+                </div>
+              </SectionCard>
+
+              {/* Billing card */}
+              <SectionCard>
+                <CardHeader
+                  icon="🧾"
+                  title="Billing"
+                  right={order.billing?.sameAsDelivery && (
+                    <span className="text-[11px] font-semibold" style={{ color: "var(--bw-muted)" }}>Same as delivery</span>
+                  )}
+                />
+                <div className="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-4">
+                  <InfoRow label="Name" value={order.billing?.fullName} />
+                  <InfoRow label="Email" value={order.billing?.email} />
+                  <InfoRow label="Phone" value={order.billing?.phone} />
+                </div>
+              </SectionCard>
+            </div>
+
+            {/* ══ RIGHT SIDEBAR ══ */}
+            <div className="flex flex-col gap-4">
+
+              {/* Payment */}
+              <SectionCard>
+                <CardHeader icon="💳" title="Payment" right={<Badge bg={pm.bg} color={pm.color}>{order.payment?.method}</Badge>} />
+                <div className="px-5 py-4">
+                  {order.payment?.method === "Bkash" && (
+                    <div className="flex flex-col gap-3 mb-4">
+                      <InfoRow label="Bkash Phone" value={order.payment.bkash?.customerPhone} />
+                      <div>
+                        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--bw-ghost)" }}>Transaction ID</div>
+                        <div className="text-[13px] font-medium" style={{ fontFamily: "var(--bw-font-mono)", color: "var(--bw-ink)" }}>
+                          {order.payment.bkash?.transactionId}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {order.payment?.method === "COD" && (
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={codConfirm}
+                          onChange={e => setCodConfirm(e.target.checked)}
+                        />
+                        <div
+                          className="w-10 h-6 rounded-full transition-colors duration-200 peer-checked:bg-[var(--bw-green)]"
+                          style={{ background: codConfirm ? undefined : "var(--bw-border)" }}
+                        />
+                        <div
+                          className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform duration-200 shadow-sm"
+                          style={{
+                            background: "white",
+                            transform: codConfirm ? "translateX(16px)" : "translateX(0)",
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-semibold" style={{ color: "var(--bw-ink)" }}>COD Confirmed</div>
+                        <div className="text-[11px]" style={{ color: "var(--bw-muted)" }}>Mark when cash is collected</div>
+                      </div>
+                    </label>
+                  )}
+                </div>
+              </SectionCard>
+
+              {/* Status */}
+              <SectionCard>
+                <CardHeader icon="📋" title="Order Status" />
+                <div className="px-5 py-4">
+                  <label className="block text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--bw-ghost)" }}>
+                    Update Status
+                  </label>
+                  <select
+                    value={selectValue}
+                    onChange={e => handleStatusChange(e.target.value)}
+                    className="w-full rounded-[var(--bw-radius-md)] px-3 pr-9 h-10 text-[14px] font-semibold outline-none transition-all duration-150 cursor-pointer"
+                    style={{
+                      background: `var(--bw-input-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center`,
+                      border: "1.5px solid var(--bw-border)",
+                      color: "var(--bw-ink)",
+                      fontFamily: "var(--bw-font-body)",
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                    }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "var(--bw-border-strong)"; e.currentTarget.style.background = `var(--bw-input-focus) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center`; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.background = `var(--bw-input-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center`; }}
+                  >
+                    {STATUS_OPTIONS.map(s => (
+                      <option key={s} value={s}>{STATUS_STYLES[s]?.label || s}</option>
+                    ))}
+                  </select>
+
+                  {newStatus !== order.status && !showRefundModal && (
+                    <div className="mt-2 text-[12px] font-semibold" style={{ color: "var(--bw-amber)" }}>
+                      {STATUS_STYLES[order.status]?.label} → {STATUS_STYLES[newStatus]?.label}
+                    </div>
+                  )}
+                  {showRefundModal && (
+                    <div className="mt-2 text-[12px] font-semibold" style={{ color: "#dc2626" }}>
+                      Complete the refund in the modal ↑
+                    </div>
+                  )}
+
+                  {!REFUND_STATUSES.has(order.status) && (
+                    <button
+                      onClick={() => setShowRefundModal(true)}
+                      className="mt-3 w-full h-9 rounded-[var(--bw-radius-md)] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-opacity hover:opacity-80"
                       style={{
-                        background: "white",
-                        transform: codConfirm ? "translateX(16px)" : "translateX(0)",
+                        background: "rgba(239,68,68,0.08)",
+                        color: "#dc2626",
+                        border: "1.5px solid rgba(239,68,68,0.25)",
                       }}
-                    />
-                  </div>
-                  <div>
-                    <div className="text-[13px] font-semibold" style={{ color: "var(--bw-ink)" }}>COD Confirmed</div>
-                    <div className="text-[11px]" style={{ color: "var(--bw-muted)" }}>Mark when cash is collected</div>
-                  </div>
-                </label>
-              )}
-            </div>
-          </SectionCard>
+                    >
+                      ↩ Issue Refund / Cancel
+                    </button>
+                  )}
+                </div>
+              </SectionCard>
 
-          {/* Status */}
-          <SectionCard>
-            <CardHeader icon="📋" title="Order Status" />
-            <div className="px-5 py-4">
-              <label className="block text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--bw-ghost)" }}>
-                Update Status
-              </label>
-              <select
-                value={selectValue}
-                onChange={e => handleStatusChange(e.target.value)}
-                className="w-full rounded-[var(--bw-radius-md)] px-3 pr-9 h-10 text-[14px] font-semibold outline-none transition-all duration-150 cursor-pointer"
-                style={{
-                  background: `var(--bw-input-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center`,
-                  border: "1.5px solid var(--bw-border)",
-                  color: "var(--bw-ink)",
-                  fontFamily: "var(--bw-font-body)",
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                }}
-                onFocus={e => { e.currentTarget.style.borderColor = "var(--bw-border-strong)"; e.currentTarget.style.background = `var(--bw-input-focus) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center`; }}
-                onBlur={e => { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.background = `var(--bw-input-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center`; }}
+              {/* Admin note */}
+              <SectionCard>
+                <CardHeader icon="📝" title="Admin Note" />
+                <div className="px-5 py-4">
+                  <textarea
+                    value={adminNote}
+                    onChange={e => setAdminNote(e.target.value)}
+                    placeholder="Private note — not visible to customer…"
+                    className="w-full rounded-[var(--bw-radius-md)] px-3 py-2.5 text-[13px] outline-none resize-none transition-all duration-150"
+                    rows={4}
+                    style={{
+                      background: "var(--bw-input-bg)",
+                      border: "1.5px solid var(--bw-border)",
+                      color: "var(--bw-ink)",
+                      fontFamily: "var(--bw-font-body)",
+                    }}
+                    onFocus={e => { e.currentTarget.style.borderColor = "var(--bw-border-strong)"; e.currentTarget.style.background = "var(--bw-input-focus)"; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.background = "var(--bw-input-bg)"; }}
+                  />
+                </div>
+              </SectionCard>
+
+              {/* Save — hidden while the modal is open to avoid double-saving */}
+              {!showRefundModal && (
+                <div className="flex flex-col gap-2">
+                  {saveError && (
+                    <div
+                      className="text-[12px] font-semibold px-3 py-2 rounded-[var(--bw-radius-md)]"
+                      style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.2)" }}
+                    >
+                      ⚠ {saveError}
+                    </div>
+                  )}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="w-full h-11 rounded-[var(--bw-radius-md)] text-[14px] font-bold flex items-center justify-center gap-2 transition-opacity duration-150 disabled:opacity-60"
+                    style={{
+                      background: "var(--bw-ink)",
+                      color: "var(--bw-bg)",
+                      border: "none",
+                      cursor: saving ? "not-allowed" : "pointer",
+                      fontFamily: "var(--bw-font-body)",
+                      boxShadow: "var(--bw-shadow-md)",
+                    }}
+                  >
+                    {saving ? <><span className="as-spinner" />Saving…</> : "Save Changes →"}
+                  </button>
+                </div>
+              )}
+
+              {/* Meta */}
+              <div
+                className="rounded-[var(--bw-radius-md)] px-4 py-3"
+                style={{ background: "var(--bw-surface-alt)", border: "1.5px solid var(--bw-border)" }}
               >
-                {STATUS_OPTIONS.map(s => (
-                  <option key={s} value={s}>{STATUS_STYLES[s]?.label || s}</option>
-                ))}
-              </select>
-
-              {newStatus !== order.status && !showRefundModal && (
-                <div className="mt-2 text-[12px] font-semibold" style={{ color: "var(--bw-amber)" }}>
-                  {STATUS_STYLES[order.status]?.label} → {STATUS_STYLES[newStatus]?.label}
+                <div className="text-[11px] font-bold uppercase tracking-widest mb-2.5" style={{ color: "var(--bw-ghost)" }}>Order Meta</div>
+                <div className="text-[11px] mb-1.5" style={{ color: "var(--bw-muted)" }}>
+                  ID: <span style={{ fontFamily: "var(--bw-font-mono)" }}>{order._id}</span>
                 </div>
-              )}
-              {showRefundModal && (
-                <div className="mt-2 text-[12px] font-semibold" style={{ color: "#dc2626" }}>
-                  Complete the refund in the modal ↑
+                <div className="text-[11px] mb-1.5" style={{ color: "var(--bw-muted)" }}>
+                  Created: {fmtDate(order.createdAt)}
                 </div>
-              )}
-
-              {!REFUND_STATUSES.has(order.status) && (
-                <button
-                  onClick={() => setShowRefundModal(true)}
-                  className="mt-3 w-full h-9 rounded-[var(--bw-radius-md)] text-[13px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-opacity hover:opacity-80"
-                  style={{
-                    background: "rgba(239,68,68,0.08)",
-                    color: "#dc2626",
-                    border: "1.5px solid rgba(239,68,68,0.25)",
-                  }}
-                >
-                  ↩ Issue Refund / Cancel
-                </button>
-              )}
-            </div>
-          </SectionCard>
-
-          {/* Admin note */}
-          <SectionCard>
-            <CardHeader icon="📝" title="Admin Note" />
-            <div className="px-5 py-4">
-              <textarea
-                value={adminNote}
-                onChange={e => setAdminNote(e.target.value)}
-                placeholder="Private note — not visible to customer…"
-                className="w-full rounded-[var(--bw-radius-md)] px-3 py-2.5 text-[13px] outline-none resize-none transition-all duration-150"
-                rows={4}
-                style={{
-                  background: "var(--bw-input-bg)",
-                  border: "1.5px solid var(--bw-border)",
-                  color: "var(--bw-ink)",
-                  fontFamily: "var(--bw-font-body)",
-                }}
-                onFocus={e => { e.currentTarget.style.borderColor = "var(--bw-border-strong)"; e.currentTarget.style.background = "var(--bw-input-focus)"; }}
-                onBlur={e => { e.currentTarget.style.borderColor = "var(--bw-border)"; e.currentTarget.style.background = "var(--bw-input-bg)"; }}
-              />
-            </div>
-          </SectionCard>
-
-          {/* Save — hidden while the modal is open to avoid double-saving */}
-          {!showRefundModal && (
-            <div className="flex flex-col gap-2">
-              {saveError && (
-                <div
-                  className="text-[12px] font-semibold px-3 py-2 rounded-[var(--bw-radius-md)]"
-                  style={{ background: "rgba(239,68,68,0.08)", color: "#dc2626", border: "1px solid rgba(239,68,68,0.2)" }}
-                >
-                  ⚠ {saveError}
-                </div>
-              )}
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full h-11 rounded-[var(--bw-radius-md)] text-[14px] font-bold flex items-center justify-center gap-2 transition-opacity duration-150 disabled:opacity-60"
-                style={{
-                  background: "var(--bw-ink)",
-                  color: "var(--bw-bg)",
-                  border: "none",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  fontFamily: "var(--bw-font-body)",
-                  boxShadow: "var(--bw-shadow-md)",
-                }}
-              >
-                {saving ? <><span className="as-spinner" />Saving…</> : "Save Changes →"}
-              </button>
-            </div>
-          )}
-
-          {/* Meta */}
-          <div
-            className="rounded-[var(--bw-radius-md)] px-4 py-3"
-            style={{ background: "var(--bw-surface-alt)", border: "1.5px solid var(--bw-border)" }}
-          >
-            <div className="text-[11px] font-bold uppercase tracking-widest mb-2.5" style={{ color: "var(--bw-ghost)" }}>Order Meta</div>
-            <div className="text-[11px] mb-1.5" style={{ color: "var(--bw-muted)" }}>
-              ID: <span style={{ fontFamily: "var(--bw-font-mono)" }}>{order._id}</span>
-            </div>
-            <div className="text-[11px] mb-1.5" style={{ color: "var(--bw-muted)" }}>
-              Created: {fmtDate(order.createdAt)}
-            </div>
-            {order.updatedAt !== order.createdAt && (
-              <div className="text-[11px]" style={{ color: "var(--bw-muted)" }}>
-                Updated: {fmtDate(order.updatedAt)}
+                {order.updatedAt !== order.createdAt && (
+                  <div className="text-[11px]" style={{ color: "var(--bw-muted)" }}>
+                    Updated: {fmtDate(order.updatedAt)}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-        </div>
-      </div>
-    </div >
+            </div>
+          </div>
+        </div >
       </div >
     </>
   );
