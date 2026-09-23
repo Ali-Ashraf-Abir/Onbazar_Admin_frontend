@@ -6,7 +6,7 @@ export async function downloadGiftCardPdf(
     filename: string,
 ): Promise<void> {
     const blob = await api.getBlob(
-        `/admin/orders/${orderId}/items/${itemIndex}/giftcard-pdf`
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api"}/admin/orders/${orderId}/items/${itemIndex}/giftcard-pdf`
     );
 
     const url = URL.createObjectURL(blob);
