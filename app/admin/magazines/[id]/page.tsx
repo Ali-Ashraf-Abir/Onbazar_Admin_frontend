@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "../../../../lib/api";
 
+type CostRow = { id: string; label: string; amount: string };
+
 export default function AdminMagazineDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -24,7 +26,20 @@ export default function AdminMagazineDetailPage() {
     maxPages: 10,
     isActive: true,
     thumbnail: "" as string | null,
+
+    // ── Pricing ──
+    currency: "BDT",
+    sellingPrice: "" as number | string,
+    costPrice: "" as number | string,
+
+    // ── Discount ──
+    discountType: "" as "" | "percentage" | "fixed",
+    discountValue: "" as number | string,
+    discountStartDate: "",
+    discountEndDate: "",
   });
+
+  const [additionalCosts, setAdditionalCosts] = useState<CostRow[]>([]);
 
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
@@ -33,6 +48,19 @@ export default function AdminMagazineDetailPage() {
   const [selectedTemplates, setSelectedTemplates] = useState<
     Map<string, { required: boolean; minUses: number; maxUses: number }>
   >(new Map());
+
+  /* ─────────────────────── helpers ─────────────────────── */
+
+  function toDateInputValue(v: any) {
+    if (!v) return "";
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return "";
+    return d.toISOString().slice(0, 10);
+  }
+
+  function makeRowId() {
+    return `cost_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
 
   /* ─────────────────────── fetch ─────────────────────── */
 
@@ -49,6 +77,9 @@ export default function AdminMagazineDetailPage() {
         setTemplates(tplData.data || []);
 
         const mag = magData.data;
+        const pricing = mag.pricing || {};
+        const discount = mag.discount || {};
+
         setFormData({
           name: mag.name || "",
           description: mag.description || "",
@@ -56,8 +87,40 @@ export default function AdminMagazineDetailPage() {
           maxPages: mag.maxPages || 10,
           isActive: mag.isActive ?? true,
           thumbnail: mag.thumbnail || "",
+
+          currency: pricing.currency || "BDT",
+          sellingPrice:
+            pricing.sellingPrice === null || pricing.sellingPrice === undefined
+              ? ""
+              : pricing.sellingPrice,
+          costPrice:
+            pricing.costPrice === null || pricing.costPrice === undefined
+              ? ""
+              : pricing.costPrice,
+
+          discountType: discount.type || "",
+          discountValue:
+            discount.value === null || discount.value === undefined
+              ? ""
+              : discount.value,
+          discountStartDate: toDateInputValue(discount.startDate),
+          discountEndDate: toDateInputValue(discount.endDate),
         });
         setThumbnailPreview(mag.thumbnail || null);
+
+        // additionalCosts may come back as a Map (serialized as a plain object)
+        const rawCosts = pricing.additionalCosts || {};
+        const costEntries =
+          rawCosts instanceof Map
+            ? Array.from(rawCosts.entries())
+            : Object.entries(rawCosts);
+        setAdditionalCosts(
+          costEntries.map(([label, amount]: [string, any]) => ({
+            id: makeRowId(),
+            label,
+            amount: String(amount ?? ""),
+          }))
+        );
 
         const tplMap = new Map();
         mag.templates?.forEach((t: any) => {
@@ -114,6 +177,37 @@ export default function AdminMagazineDetailPage() {
       });
     }
   }
+
+  /* ─────────────────────── pricing / discount ─────────────────────── */
+
+  function addCostRow() {
+    setAdditionalCosts([...additionalCosts, { id: makeRowId(), label: "", amount: "" }]);
+  }
+
+  function updateCostRow(rowId: string, field: "label" | "amount", value: string) {
+    setAdditionalCosts((rows) =>
+      rows.map((r) => (r.id === rowId ? { ...r, [field]: value } : r))
+    );
+  }
+
+  function removeCostRow(rowId: string) {
+    setAdditionalCosts((rows) => rows.filter((r) => r.id !== rowId));
+  }
+
+  const numericSellingPrice =
+    formData.sellingPrice === "" ? null : Number(formData.sellingPrice);
+  const numericCostPrice =
+    formData.costPrice === "" ? null : Number(formData.costPrice);
+  const additionalCostsTotal = additionalCosts.reduce(
+    (sum, r) => sum + (Number(r.amount) || 0),
+    0
+  );
+  const totalCost =
+    numericCostPrice !== null ? numericCostPrice + additionalCostsTotal : null;
+  const margin =
+    numericSellingPrice !== null && totalCost !== null && numericSellingPrice > 0
+      ? (((numericSellingPrice - totalCost) / numericSellingPrice) * 100).toFixed(1)
+      : null;
 
   /* ─────────────────────── thumbnail upload ─────────────────────── */
 
@@ -223,8 +317,28 @@ export default function AdminMagazineDetailPage() {
       return;
     }
 
+    if (
+      numericSellingPrice !== null &&
+      numericCostPrice !== null &&
+      numericSellingPrice < 0
+    ) {
+      setError("Selling price cannot be negative");
+      return;
+    }
+
+    if (formData.discountType && formData.discountValue === "") {
+      setError("Enter a discount value or clear the discount type");
+      return;
+    }
+
     setSaving(true);
     try {
+      const additionalCostsObj = Object.fromEntries(
+        additionalCosts
+          .filter((r) => r.label.trim())
+          .map((r) => [r.label.trim(), Number(r.amount) || 0])
+      );
+
       const payload = {
         name: formData.name,
         description: formData.description,
@@ -232,6 +346,23 @@ export default function AdminMagazineDetailPage() {
         minPages: formData.minPages,
         maxPages: formData.maxPages,
         isActive: formData.isActive,
+        pricing: {
+          sellingPrice: numericSellingPrice,
+          costPrice: numericCostPrice,
+          currency: formData.currency || "BDT",
+          additionalCosts: additionalCostsObj,
+        },
+        discount: formData.discountType
+          ? {
+              type: formData.discountType,
+              value:
+                formData.discountValue === ""
+                  ? null
+                  : Number(formData.discountValue),
+              startDate: formData.discountStartDate || null,
+              endDate: formData.discountEndDate || null,
+            }
+          : { type: null, value: null, startDate: null, endDate: null },
         templates: Array.from(selectedTemplates.entries()).map(
           ([templateId, config]) => ({
             templateId: String(templateId), // Ensure it's always a string
@@ -539,6 +670,201 @@ export default function AdminMagazineDetailPage() {
               </div>
             </div>
 
+            {/* Pricing Card */}
+            <div
+              className="rounded-[var(--bw-radius-lg)] p-5 sm:p-6"
+              style={{
+                background: "var(--bw-surface)",
+                border: "1px solid var(--bw-border)",
+                boxShadow: "var(--bw-shadow-sm)",
+              }}
+            >
+              <h2
+                className="text-lg font-bold mb-5"
+                style={{ fontFamily: "var(--bw-font-display)" }}
+              >
+                Pricing
+              </h2>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelCls}>Currency</label>
+                    <input
+                      className={inputBase}
+                      type="text"
+                      name="currency"
+                      value={formData.currency}
+                      onChange={handleInputChange}
+                      placeholder="BDT"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Selling Price</label>
+                    <input
+                      className={inputBase}
+                      type="number"
+                      name="sellingPrice"
+                      value={formData.sellingPrice}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Cost Price</label>
+                    <input
+                      className={inputBase}
+                      type="number"
+                      name="costPrice"
+                      value={formData.costPrice}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                {/* Additional Costs */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={labelCls} style={{ marginBottom: 0 }}>
+                      Additional Costs
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addCostRow}
+                      className="text-[11px] font-semibold px-2 py-1 rounded-[var(--bw-radius-sm)] cursor-pointer border"
+                      style={{
+                        background: "var(--bw-surface-alt)",
+                        borderColor: "var(--bw-border)",
+                        color: "var(--bw-ink)",
+                      }}
+                    >
+                      + Add cost
+                    </button>
+                  </div>
+
+                  {additionalCosts.length === 0 ? (
+                    <p className="text-xs" style={{ color: "var(--bw-ghost)" }}>
+                      e.g. printing, shipping, design — none added yet
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {additionalCosts.map((row) => (
+                        <div key={row.id} className="flex gap-2">
+                          <input
+                            className={inputBase}
+                            type="text"
+                            placeholder="Label (e.g. Printing)"
+                            value={row.label}
+                            onChange={(e) =>
+                              updateCostRow(row.id, "label", e.target.value)
+                            }
+                          />
+                          <input
+                            className={inputBase}
+                            style={{ maxWidth: "9rem" }}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Amount"
+                            value={row.amount}
+                            onChange={(e) =>
+                              updateCostRow(row.id, "amount", e.target.value)
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeCostRow(row.id)}
+                            className="px-3 rounded-[var(--bw-radius-md)] text-xs font-semibold cursor-pointer border-none"
+                            style={{
+                              background: "rgba(220,38,38,0.15)",
+                              color: "rgb(220,38,38)",
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {margin !== null && (
+                  <p className="text-[11px]" style={{ color: "var(--bw-ghost)" }}>
+                    Estimated margin:{" "}
+                    <span
+                      style={{
+                        color: Number(margin) >= 0 ? "rgb(22,163,74)" : "rgb(220,38,38)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {margin}%
+                    </span>{" "}
+                    (selling price minus cost price and additional costs)
+                  </p>
+                )}
+
+                {/* Discount */}
+                <div className="pt-3 border-t" style={{ borderColor: "var(--bw-divider)" }}>
+                  <label className={labelCls}>Discount</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <select
+                      className={inputBase}
+                      name="discountType"
+                      value={formData.discountType}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">No discount</option>
+                      <option value="percentage">Percentage</option>
+                      <option value="fixed">Fixed amount</option>
+                    </select>
+                    <input
+                      className={inputBase}
+                      type="number"
+                      name="discountValue"
+                      value={formData.discountValue}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder={
+                        formData.discountType === "percentage" ? "e.g. 10" : "e.g. 100"
+                      }
+                      disabled={!formData.discountType}
+                    />
+                  </div>
+
+                  {formData.discountType && (
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div>
+                        <label className={labelCls}>Starts</label>
+                        <input
+                          className={inputBase}
+                          type="date"
+                          name="discountStartDate"
+                          value={formData.discountStartDate}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Ends</label>
+                        <input
+                          className={inputBase}
+                          type="date"
+                          name="discountEndDate"
+                          value={formData.discountEndDate}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Templates Card */}
             <div
               className="rounded-[var(--bw-radius-lg)] p-5 sm:p-6"
@@ -747,6 +1073,54 @@ export default function AdminMagazineDetailPage() {
                     {selectedTemplates.size}
                   </span>
                 </div>
+
+                <div className="h-px" style={{ background: "var(--bw-divider)" }} />
+
+                <div className="flex justify-between items-center">
+                  <span
+                    className="text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--bw-ghost)" }}
+                  >
+                    Selling Price
+                  </span>
+                  <span className="text-sm font-semibold">
+                    {numericSellingPrice !== null
+                      ? `${formData.currency} ${numericSellingPrice.toLocaleString()}`
+                      : "—"}
+                  </span>
+                </div>
+
+                {formData.discountType && (
+                  <div className="flex justify-between items-center">
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: "var(--bw-ghost)" }}
+                    >
+                      Discount
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {formData.discountValue || 0}
+                      {formData.discountType === "percentage" ? "%" : ` ${formData.currency}`}
+                    </span>
+                  </div>
+                )}
+
+                {margin !== null && (
+                  <div className="flex justify-between items-center">
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: "var(--bw-ghost)" }}
+                    >
+                      Margin
+                    </span>
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: Number(margin) >= 0 ? "rgb(22,163,74)" : "rgb(220,38,38)" }}
+                    >
+                      {margin}%
+                    </span>
+                  </div>
+                )}
 
                 {selectedTemplates.size > 0 && (
                   <>
