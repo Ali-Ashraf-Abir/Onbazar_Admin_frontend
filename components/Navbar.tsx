@@ -116,6 +116,18 @@ const moreRoutes = [
     ),
   },
   {
+    path: "/admin/puzzles",
+    label: "Puzzles",
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 4h3a2 2 0 0 1 2 2v2H8a2 2 0 1 1 0-4z" />
+        <path d="M14 8h4a2 2 0 1 1 0 4h-2v2" />
+        <path d="M8 14H4a2 2 0 1 0 0 4h4v-2a2 2 0 0 1 2-2h2" />
+        <path d="M14 14h2a2 2 0 0 1 2 2v4h-4v-3a2 2 0 0 0-2-2h-2" />
+      </svg>
+    ),
+  },
+  {
     path: "/admin/gift-cards",
     label: "Gift Cards",
     icon: (

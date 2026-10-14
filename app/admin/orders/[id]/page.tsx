@@ -377,6 +377,8 @@ export default function AdminOrderDetailPage() {
                         );
                         const isMap = item.itemType === "map";
                         const isGiftCard = item.itemType === "giftCard";
+                        const isPuzzle = item.itemType === "puzzle";
+                        const puzzleImages = item.puzzleCustomization?.images ?? [];
                         return (
                           <tr
                             key={i}
@@ -434,6 +436,28 @@ export default function AdminOrderDetailPage() {
                                 >
                                   ⬇ Download Poster
                                 </a>
+                              )}
+                              {isPuzzle && puzzleImages.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {puzzleImages.map((image: { assetId?: string; url: string }, photoIndex: number) => (
+                                    <a
+                                      key={image.assetId || photoIndex}
+                                      href={toCloudinaryDownloadUrl(
+                                        image.url,
+                                        `${order.orderNumber}-puzzle-${i + 1}-${photoIndex + 1}`
+                                      )}
+                                      className="block"
+                                      title="Download photo"
+                                    >
+                                      <img
+                                        src={image.url}
+                                        alt=""
+                                        className="w-14 h-14 rounded-[var(--bw-radius-sm)] object-cover"
+                                        style={{ background: "var(--bw-surface-alt)" }}
+                                      />
+                                    </a>
+                                  ))}
+                                </div>
                               )}
                               {isGiftCard && (
                                 <button
